@@ -1,0 +1,18 @@
+{
+  "name": "@pairpair/native-input",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:native": "napi build --platform",
+    "build:ts": "tsc",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "dependencies": {}
+}

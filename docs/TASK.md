@@ -9,69 +9,69 @@
 
 ### 0-1. monorepo 初期化
 
-- [ ] `pnpm init` + `pnpm-workspace.yaml` 作成
-- [ ] `package.json` に workspaces 設定（`apps/*`, `packages/*`）
-- [ ] `turbo.json` 作成（build / dev / test のパイプライン定義）
-- [ ] `.gitignore` 作成（node_modules, dist, out, .turbo, *.log 等）
-- [ ] `tsconfig.base.json` 作成（全パッケージ共通の TypeScript 設定）
-- [ ] Node.js バージョンを `.nvmrc` または `package.json#engines` に固定
+- [x] `pnpm init` + `pnpm-workspace.yaml` 作成
+- [x] `package.json` に workspaces 設定（`apps/*`, `packages/*`）
+- [x] `turbo.json` 作成（build / dev / test のパイプライン定義）
+- [x] `.gitignore` 作成（node_modules, dist, out, .turbo, *.log 等）
+- [x] `tsconfig.base.json` 作成（全パッケージ共通の TypeScript 設定）
+- [x] Node.js バージョンを `.nvmrc` または `package.json#engines` に固定
 
 ### 0-2. packages/shared 作成
 
-- [ ] `packages/shared/package.json` 作成
-- [ ] `packages/shared/tsconfig.json` 作成
-- [ ] `src/signaling-types.ts` — WebSocket メッセージ型定義
-  - [ ] `HostRegisterMessage`
-  - [ ] `GuestRegisterMessage`
-  - [ ] `GuestJoinedMessage`
-  - [ ] `RtcOfferMessage`
-  - [ ] `RtcAnswerMessage`
-  - [ ] `RtcIceMessage`
-  - [ ] `SessionCloseMessage`
-  - [ ] 共通型 `BaseMessage<T>`
-- [ ] `src/rtc-types.ts` — DataChannel 上の制御メッセージ型定義
-  - [ ] `ControlMessage` ユニオン型（remoteControlRequest / granted / revoked / paused / ping / pong / statsReport）
-- [ ] `src/input-events.ts` — 入力イベント型定義
-  - [ ] `MouseMoveEvent`
-  - [ ] `MouseDownEvent`
-  - [ ] `MouseUpEvent`
-  - [ ] `MouseWheelEvent`
-  - [ ] `KeyboardDownEvent`
-  - [ ] `KeyboardUpEvent`
-  - [ ] `TextInputEvent`
-  - [ ] `InputEvent` ユニオン型
-- [ ] `src/quality.ts` — 画質プリセット型・定数定義
-  - [ ] `QualityPreset` 型（Low / Balanced / Sharp / Ultra / Custom）
-  - [ ] 各プリセットの定数オブジェクト
-- [ ] `src/errors.ts` — アプリ共通エラーコード定義
+- [x] `packages/shared/package.json` 作成
+- [x] `packages/shared/tsconfig.json` 作成
+- [x] `src/signaling-types.ts` — WebSocket メッセージ型定義
+  - [x] `HostRegisterMessage`
+  - [x] `GuestRegisterMessage`
+  - [x] `GuestJoinedMessage`
+  - [x] `RtcOfferMessage`
+  - [x] `RtcAnswerMessage`
+  - [x] `RtcIceMessage`
+  - [x] `SessionCloseMessage`
+  - [x] 共通型 `BaseMessage<T>`
+- [x] `src/rtc-types.ts` — DataChannel 上の制御メッセージ型定義
+  - [x] `ControlMessage` ユニオン型（remoteControlRequest / granted / revoked / paused / ping / pong / statsReport）
+- [x] `src/input-events.ts` — 入力イベント型定義
+  - [x] `MouseMoveEvent`
+  - [x] `MouseDownEvent`
+  - [x] `MouseUpEvent`
+  - [x] `MouseWheelEvent`
+  - [x] `KeyboardDownEvent`
+  - [x] `KeyboardUpEvent`
+  - [x] `TextInputEvent`
+  - [x] `InputEvent` ユニオン型
+- [x] `src/quality.ts` — 画質プリセット型・定数定義
+  - [x] `QualityPreset` 型（Low / Balanced / Sharp / Ultra / Custom）
+  - [x] 各プリセットの定数オブジェクト
+- [x] `src/errors.ts` — アプリ共通エラーコード定義
 
 ### 0-3. packages/native-input 骨格作成
 
-- [ ] `packages/native-input/package.json` 作成（napi-rs 依存）
-- [ ] `@napi-rs/cli` を devDependencies に追加
-- [ ] `napi build` スクリプト設定
-- [ ] Rust プロジェクト初期化（`cargo init`）
-- [ ] `build.rs` でプラットフォーム別ターゲット設定
+- [x] `packages/native-input/package.json` 作成（napi-rs 依存）
+- [x] `@napi-rs/cli` を devDependencies に追加
+- [x] `napi build` スクリプト設定
+- [x] Rust プロジェクト初期化（`cargo init`）
+- [x] `build.rs` でプラットフォーム別ターゲット設定
 - [ ] Windows ビルド確認（`cargo build --target x86_64-pc-windows-msvc`）
 - [ ] Mac ビルド確認は Mac 環境で行う（Mac 向けは Phase 5 以降）
 
 ### 0-4. apps/signaling-server 作成
 
-- [ ] `apps/signaling-server/package.json` 作成
-- [ ] 依存追加: `fastify`, `@fastify/cors`, `ws`, `ioredis`, `zod`, `pino`, `uuid`
-- [ ] `tsconfig.json` 作成
-- [ ] ビルドスクリプト設定（`tsc` or `tsup`）
-- [ ] `src/index.ts` エントリポイント作成
+- [x] `apps/signaling-server/package.json` 作成
+- [x] 依存追加: `fastify`, `@fastify/cors`, `ws`, `ioredis`, `zod`, `pino`, `uuid`
+- [x] `tsconfig.json` 作成
+- [x] ビルドスクリプト設定（`tsc` or `tsup`）
+- [x] `src/index.ts` エントリポイント作成
 
 ### 0-5. apps/desktop 作成
 
-- [ ] `apps/desktop/package.json` 作成
-- [ ] 依存追加: `electron`, `electron-vite`, `react`, `react-dom`, `zustand`, `electron-store`, `electron-log`
-- [ ] devDependencies: `@types/react`, `@types/react-dom`, `@types/electron`, `vitest`, `playwright`
-- [ ] `electron.vite.config.ts` 作成
-- [ ] `tsconfig.json`（main / preload / renderer の 3 設定 or 統合）
-- [ ] `electron-builder.yml` 骨格作成（Windows / Mac targets）
-- [ ] Electron ハードウェアエンコードフラグを `main.ts` に設定
+- [x] `apps/desktop/package.json` 作成
+- [x] 依存追加: `electron`, `electron-vite`, `react`, `react-dom`, `zustand`, `electron-store`, `electron-log`
+- [x] devDependencies: `@types/react`, `@types/react-dom`, `@types/electron`, `vitest`, `playwright`
+- [x] `electron.vite.config.ts` 作成
+- [x] `tsconfig.json`（main / preload / renderer の 3 設定 or 統合）
+- [x] `electron-builder.yml` 骨格作成（Windows / Mac targets）
+- [x] Electron ハードウェアエンコードフラグを `main.ts` に設定
   ```ts
   app.commandLine.appendSwitch("enable-accelerated-video-encode");
   app.commandLine.appendSwitch("enable-gpu-rasterization");
@@ -85,84 +85,84 @@
 
 ### 1-1. Signaling Server — セッション管理
 
-- [ ] `src/infra/redis.ts` — Redis クライアント初期化（IORedis）
-- [ ] `src/services/code-generator.ts` — 6〜8 桁コード生成（重複チェック付き）
-- [ ] `src/services/session-service.ts`
-  - [ ] `createHostSession(deviceName, platform, appVersion)` → sessionId / code / hostToken / expiresAt
-  - [ ] `guestJoin(code, deviceName, platform, appVersion)` → sessionId / guestToken / hostDeviceName
-  - [ ] `getSession(sessionId)` → セッション情報
-  - [ ] TTL 管理（code TTL: 10分、session TTL: 24時間）
-  - [ ] コード使用済みフラグ管理（再利用不可）
-  - [ ] `closeSession(sessionId)` → Redis から削除
+- [x] `src/infra/redis.ts` — Redis クライアント初期化（IORedis）
+- [x] `src/services/code-generator.ts` — 6〜8 桁コード生成（重複チェック付き）
+- [x] `src/services/session-service.ts`
+  - [x] `createHostSession(deviceName, platform, appVersion)` → sessionId / code / hostToken / expiresAt
+  - [x] `guestJoin(code, deviceName, platform, appVersion)` → sessionId / guestToken / hostDeviceName
+  - [x] `getSession(sessionId)` → セッション情報
+  - [x] TTL 管理（code TTL: 10分、session TTL: 24時間）
+  - [x] コード使用済みフラグ管理（再利用不可）
+  - [x] `closeSession(sessionId)` → Redis から削除
 
 ### 1-2. Signaling Server — REST API
 
-- [ ] `src/routes/health.ts` — `GET /api/health`
-- [ ] `src/routes/sessions.ts`
-  - [ ] `POST /api/sessions/host` — Zod バリデーション + セッション作成
-  - [ ] `POST /api/sessions/join` — Zod バリデーション + ゲスト参加
-- [ ] レート制限実装（IP ベース、例: 10回/分）
-- [ ] `@fastify/cors` 設定（Electron からのリクエスト許可）
+- [x] `src/routes/health.ts` — `GET /api/health`
+- [x] `src/routes/sessions.ts`
+  - [x] `POST /api/sessions/host` — Zod バリデーション + セッション作成
+  - [x] `POST /api/sessions/join` — Zod バリデーション + ゲスト参加
+- [x] レート制限実装（IP ベース、例: 10回/分）
+- [x] `@fastify/cors` 設定（Electron からのリクエスト許可）
 
 ### 1-3. Signaling Server — WebSocket
 
-- [ ] `src/ws/session-registry.ts` — セッションごとの WebSocket 接続管理
-  - [ ] `registerHost(sessionId, hostToken, ws)` — ホスト接続登録
-  - [ ] `registerGuest(sessionId, guestToken, ws)` — ゲスト接続登録
-  - [ ] 接続切断時のクリーンアップ
-- [ ] `src/ws/signaling.ts` — WebSocket ハンドラー
-  - [ ] `host.register` 受信処理（hostToken 検証）
-  - [ ] `guest.register` 受信処理（guestToken 検証）
-  - [ ] `guest.register` 後にホストへ `guest.joined` 通知
-  - [ ] `rtc.offer` 中継（ホスト → ゲスト）
-  - [ ] `rtc.answer` 中継（ゲスト → ホスト）
-  - [ ] `rtc.ice` 中継（双方向）
-  - [ ] `session.close` 処理（双方に通知してセッション削除）
-  - [ ] heartbeat / ping-pong 実装
-  - [ ] 不正メッセージの無視（tokenが一致しないものは転送しない）
+- [x] `src/ws/session-registry.ts` — セッションごとの WebSocket 接続管理
+  - [x] `registerHost(sessionId, hostToken, ws)` — ホスト接続登録
+  - [x] `registerGuest(sessionId, guestToken, ws)` — ゲスト接続登録
+  - [x] 接続切断時のクリーンアップ
+- [x] `src/ws/signaling.ts` — WebSocket ハンドラー
+  - [x] `host.register` 受信処理（hostToken 検証）
+  - [x] `guest.register` 受信処理（guestToken 検証）
+  - [x] `guest.register` 後にホストへ `guest.joined` 通知
+  - [x] `rtc.offer` 中継（ホスト → ゲスト）
+  - [x] `rtc.answer` 中継（ゲスト → ホスト）
+  - [x] `rtc.ice` 中継（双方向）
+  - [x] `session.close` 処理（双方に通知してセッション削除）
+  - [x] heartbeat / ping-pong 実装
+  - [x] 不正メッセージの無視（tokenが一致しないものは転送しない）
 
 ### 1-4. Desktop — Electron 基盤
 
-- [ ] `src/main/main.ts`
-  - [ ] BrowserWindow 作成（nodeIntegration: false, contextIsolation: true, sandbox: true）
-  - [ ] `app.ready` 前にハードウェアエンコードフラグ設定
-  - [ ] `session.defaultSession.setDisplayMediaRequestHandler` 設定（画面ソース提供）
-  - [ ] dev/prod 環境切り替え（`loadURL` vs `loadFile`）
-- [ ] `src/main/window.ts` — BrowserWindow 管理ユーティリティ
-- [ ] `src/preload/index.ts`
-  - [ ] `contextBridge.exposeInMainWorld` で必要最小限の API のみ公開
+- [x] `src/main/main.ts`
+  - [x] BrowserWindow 作成（nodeIntegration: false, contextIsolation: true, sandbox: true）
+  - [x] `app.ready` 前にハードウェアエンコードフラグ設定
+  - [x] `session.defaultSession.setDisplayMediaRequestHandler` 設定（画面ソース提供）
+  - [x] dev/prod 環境切り替え（`loadURL` vs `loadFile`）
+- [x] `src/main/window.ts` — BrowserWindow 管理ユーティリティ
+- [x] `src/preload/index.ts`
+  - [x] `contextBridge.exposeInMainWorld` で必要最小限の API のみ公開
   - [ ] IPC invoke ラッパー: `getScreenSources`, `startHost`, `joinGuest`, `stopSession`, `checkPermissions`
-  - [ ] 任意 IPC 送信を exposeしない（セキュリティ要件）
+  - [x] 任意 IPC 送信を exposeしない（セキュリティ要件）
 
 ### 1-5. Desktop — IPC ハンドラー
 
-- [ ] `src/main/ipc/screen.ipc.ts`
-  - [ ] `screen:getSources` — `desktopCapturer.getSources()` をmain processで実行し返す
-- [ ] `src/main/ipc/permission.ipc.ts`
-  - [ ] `permissions:check` — macOS: 画面収録・アクセシビリティ権限確認 / Windows: 常時 true
-- [ ] `src/main/ipc/settings.ipc.ts`
-  - [ ] `settings:get` / `settings:set` — `electron-store` 経由
+- [x] `src/main/ipc/screen.ipc.ts`
+  - [x] `screen:getSources` — `desktopCapturer.getSources()` をmain processで実行し返す
+- [x] `src/main/ipc/permission.ipc.ts`
+  - [x] `permissions:check` — macOS: 画面収録・アクセシビリティ権限確認 / Windows: 常時 true
+- [x] `src/main/ipc/settings.ipc.ts`
+  - [x] `settings:get` / `settings:set` — `electron-store` 経由
 
 ### 1-6. Desktop — WebRTC クライアント
 
-- [ ] `src/renderer/webrtc/signaling-client.ts`
-  - [ ] WebSocket 接続・切断
-  - [ ] `host.register` 送信
-  - [ ] `guest.register` 送信
-  - [ ] `rtc.offer/answer/ice` 送受信
-  - [ ] `session.close` 送受信
-  - [ ] 再接続ロジック（指数バックオフ）
-- [ ] `src/renderer/webrtc/rtc-client.ts`
-  - [ ] `RTCPeerConnection` 作成（STUN サーバー設定）
-  - [ ] DataChannel 作成（`control`, `input`, `inputReliable`）
-  - [ ] offer 作成・送信フロー
-  - [ ] answer 受信・setRemoteDescription フロー
-  - [ ] ICE candidate 送受信
-  - [ ] connectionState 変化のイベント発火
-- [ ] `src/renderer/webrtc/data-channel.ts`
-  - [ ] `control` チャンネルの送受信ラッパー
-  - [ ] `input` チャンネル（unreliable）送受信ラッパー
-  - [ ] `inputReliable` チャンネル（reliable）送受信ラッパー
+- [x] `src/renderer/webrtc/signaling-client.ts`
+  - [x] WebSocket 接続・切断
+  - [x] `host.register` 送信
+  - [x] `guest.register` 送信
+  - [x] `rtc.offer/answer/ice` 送受信
+  - [x] `session.close` 送受信
+  - [x] 再接続ロジック（指数バックオフ）
+- [x] `src/renderer/webrtc/rtc-client.ts`
+  - [x] `RTCPeerConnection` 作成（STUN サーバー設定）
+  - [x] DataChannel 作成（`control`, `input`, `inputReliable`）
+  - [x] offer 作成・送信フロー
+  - [x] answer 受信・setRemoteDescription フロー
+  - [x] ICE candidate 送受信
+  - [x] connectionState 変化のイベント発火
+- [x] `src/renderer/webrtc/data-channel.ts`
+  - [x] `control` チャンネルの送受信ラッパー
+  - [x] `input` チャンネル（unreliable）送受信ラッパー
+  - [x] `inputReliable` チャンネル（reliable）送受信ラッパー
 - [ ] `src/main/webrtc/peer-host.ts`
   - [ ] `desktopCapturer` でキャプチャした MediaStream を RTCPeerConnection に追加
   - [ ] `RTCRtpSender.setParameters()` で bitrate / fps 設定
@@ -177,61 +177,61 @@
 
 ### 1-7. Desktop — 画面キャプチャ設定
 
-- [ ] `src/renderer/components/ScreenSourcePicker.tsx`
-  - [ ] `getScreenSources()` IPC で画面・ウィンドウ一覧取得
-  - [ ] サムネイル表示（小サイズで取得してメモリ節約）
+- [x] `src/renderer/components/ScreenSourcePicker.tsx`
+  - [x] `getScreenSources()` IPC で画面・ウィンドウ一覧取得
+  - [x] サムネイル表示（小サイズで取得してメモリ節約）
   - [ ] 画面名・ウィンドウ名・解像度表示
-  - [ ] 選択状態管理
+  - [x] 選択状態管理
 
 ### 1-8. Desktop — 画面・ルーティング
 
-- [ ] `src/renderer/App.tsx` — React Router (または独自ルーティング) 設定
-- [ ] `src/renderer/routes/HomePage.tsx`
-  - [ ] 「ホストとして開始」ボタン
-  - [ ] 「ゲストとして参加」ボタン
-  - [ ] 設定へのリンク
-  - [ ] 前回品質設定の表示
-- [ ] `src/renderer/routes/HostPage.tsx`（Host Setup）
-  - [ ] ScreenSourcePicker 組み込み
-  - [ ] 品質プリセット選択
-  - [ ] カスタム設定（解像度 / fps / ビットレート）
-  - [ ] 「セッションを作成」ボタン → REST API 呼び出し + WebSocket 接続
+- [x] `src/renderer/App.tsx` — React Router (または独自ルーティング) 設定
+- [x] `src/renderer/routes/HomePage.tsx`
+  - [x] 「ホストとして開始」ボタン
+  - [x] 「ゲストとして参加」ボタン
+  - [x] 設定へのリンク
+  - [x] 前回品質設定の表示
+- [x] `src/renderer/routes/HostPage.tsx`（Host Setup）
+  - [x] ScreenSourcePicker 組み込み
+  - [x] 品質プリセット選択
+  - [x] カスタム設定（解像度 / fps / ビットレート）
+  - [x] 「セッションを作成」ボタン → REST API 呼び出し + WebSocket 接続
   - [ ] 権限チェック呼び出し・不足時のエラー表示
-- [ ] `src/renderer/routes/HostPage.tsx`（Host Waiting）
-  - [ ] セッションコード表示（XXX XXX 形式）
-  - [ ] コピーボタン
-  - [ ] 有効期限カウントダウン
+- [x] `src/renderer/routes/HostPage.tsx`（Host Waiting）
+  - [x] セッションコード表示（XXX XXX 形式）
+  - [x] コピーボタン
+  - [x] 有効期限カウントダウン
   - [ ] WebSocket 接続状態表示
-  - [ ] `guest.joined` 受信でセッション画面へ遷移
-  - [ ] キャンセルボタン
-- [ ] `src/renderer/routes/GuestPage.tsx`（Guest Join）
-  - [ ] コード入力フォーム（数字のみ、6〜8桁）
-  - [ ] 「接続」ボタン → REST API 呼び出し + WebSocket 接続 → WebRTC ネゴシエーション
-  - [ ] 接続中スピナー
-  - [ ] エラー表示
-- [ ] `src/renderer/routes/SessionPage.tsx` — Host / Guest それぞれの分岐
+  - [x] `guest.joined` 受信でセッション画面へ遷移
+  - [x] キャンセルボタン
+- [x] `src/renderer/routes/GuestPage.tsx`（Guest Join）
+  - [x] コード入力フォーム（数字のみ、6〜8桁）
+  - [x] 「接続」ボタン → REST API 呼び出し + WebSocket 接続 → WebRTC ネゴシエーション
+  - [x] 接続中スピナー
+  - [x] エラー表示
+- [x] `src/renderer/routes/SessionPage.tsx` — Host / Guest それぞれの分岐
 
 ### 1-9. Desktop — セッション画面（Phase 1 最小版）
 
-- [ ] `src/renderer/routes/SessionPage.tsx`（Host 側）
+- [x] `src/renderer/routes/SessionPage.tsx`（Host 側）
   - [ ] 共有中情報表示（画面名・接続先・P2P 状態）
-  - [ ] 「セッション終了」ボタン
-- [ ] `src/renderer/routes/SessionPage.tsx`（Guest 側）
-  - [ ] `<video>` タグで受信映像表示（autoplay, muted）
-  - [ ] 「切断」ボタン
-- [ ] `src/renderer/components/StatsOverlay.tsx`（最小版）
-  - [ ] RTT / Codec / Resolution / FPS / Bitrate / ICE state 表示
-  - [ ] トグルで表示/非表示
+  - [x] 「セッション終了」ボタン
+- [x] `src/renderer/routes/SessionPage.tsx`（Guest 側）
+  - [x] `<video>` タグで受信映像表示（autoplay, muted）
+  - [x] 「切断」ボタン
+- [x] `src/renderer/components/StatsOverlay.tsx`（最小版）
+  - [x] RTT / Codec / Resolution / FPS / Bitrate / ICE state 表示
+  - [x] トグルで表示/非表示
 
 ### 1-10. Desktop — 状態管理
 
-- [ ] `src/renderer/store/session-store.ts`（Zustand）
-  - [ ] sessionId / role / connectionState / guestDeviceName / hostDeviceName
-  - [ ] signalingState / iceConnectionState
-- [ ] `src/renderer/store/settings-store.ts`（Zustand + electron-store 同期）
-  - [ ] defaultPreset / stun server URL
-- [ ] `src/renderer/store/app-store.ts`（Zustand）
-  - [ ] currentRoute / permissionState / error
+- [x] `src/renderer/store/session-store.ts`（Zustand）
+  - [x] sessionId / role / connectionState / guestDeviceName / hostDeviceName
+  - [x] signalingState / iceConnectionState
+- [x] `src/renderer/store/settings-store.ts`（Zustand + electron-store 同期）
+  - [x] defaultPreset / stun server URL
+- [x] `src/renderer/store/app-store.ts`（Zustand）
+  - [x] currentRoute / permissionState / error
 
 ### 1-11. 動作確認
 
@@ -247,12 +247,12 @@
 ### 2-1. 品質プリセット実装
 
 - [ ] `packages/shared/src/quality.ts` に全プリセット定数確認・拡充
-- [ ] `src/renderer/components/QualityPresetSelector.tsx`
-  - [ ] Low / Balanced / Sharp / Ultra / Custom 切り替え
-  - [ ] Custom 選択時に個別設定入力 UI 表示
-- [ ] `src/renderer/utils/bitrate.ts`
-  - [ ] ビットレート文字列変換ユーティリティ
-  - [ ] `RTCRtpSender.setParameters()` 用パラメータ生成ヘルパー
+- [x] `src/renderer/components/QualityPresetSelector.tsx`
+  - [x] Low / Balanced / Sharp / Ultra / Custom 切り替え
+  - [x] Custom 選択時に個別設定入力 UI 表示
+- [x] `src/renderer/utils/bitrate.ts`
+  - [x] ビットレート文字列変換ユーティリティ
+  - [x] `RTCRtpSender.setParameters()` 用パラメータ生成ヘルパー
 
 ### 2-2. セッション中の画質変更
 

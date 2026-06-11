@@ -1,0 +1,36 @@
+{
+  "name": "@pairpair/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "build": "electron-vite build",
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "package": "electron-builder --config electron-builder.yml"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "electron-log": "^5.1.5",
+    "@pairpair/shared": "workspace:*",
+    "@pairpair/native-input": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-vite": "^2.3.0",
+    "electron-builder": "^24.13.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.2",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/electron": "^1.6.12",
+    "@types/node": "^20.14.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "playwright": "^1.60.0"
+  }
+}

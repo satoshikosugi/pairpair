@@ -1,11 +1,16 @@
 # Dependencies
 node_modules/
-pnpm-lock.yaml
 
 # Build outputs
 dist/
 out/
 build/
+.turbo/
+*.node
+
+# Environment
+.env
+.env.local
 
 # Rust
 target/
@@ -35,6 +40,3 @@ pids/
 main.js
 preload.js
 renderer.js
-
-# Turbo
-.turbo/

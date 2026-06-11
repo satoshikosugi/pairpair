@@ -1,0 +1,27 @@
+export const ErrorCodes = {
+  // Session errors
+  SESSION_NOT_FOUND: "SESSION_NOT_FOUND",
+  SESSION_EXPIRED: "SESSION_EXPIRED",
+  SESSION_CODE_USED: "SESSION_CODE_USED",
+  SESSION_FULL: "SESSION_FULL",
+  INVALID_TOKEN: "INVALID_TOKEN",
+  // Connection errors
+  P2P_CONNECTION_FAILED: "P2P_CONNECTION_FAILED",
+  WEBSOCKET_ERROR: "WEBSOCKET_ERROR",
+  ICE_FAILED: "ICE_FAILED",
+  // Permission errors
+  PERMISSION_DENIED: "PERMISSION_DENIED",
+  SCREEN_RECORDING_DENIED: "SCREEN_RECORDING_DENIED",
+  ACCESSIBILITY_DENIED: "ACCESSIBILITY_DENIED",
+  // Rate limit
+  RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
+  // Validation
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+} as const;
+
+export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];
+
+export interface AppError {
+  code: ErrorCode;
+  message: string;
+}

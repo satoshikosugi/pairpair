@@ -1,0 +1,32 @@
+appId: com.pairpair.app
+productName: PairPair
+directories:
+  buildResources: build
+files:
+  - out/**/*
+  - "!out/**/*.map"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  extraResources:
+    - from: "../../packages/native-input/native/"
+      to: "native-input/"
+      filter:
+        - "*.node"
+mac:
+  target:
+    - target: dmg
+    - target: zip
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extraResources:
+    - from: "../../packages/native-input/native/"
+      to: "native-input/"
+      filter:
+        - "*.node"
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

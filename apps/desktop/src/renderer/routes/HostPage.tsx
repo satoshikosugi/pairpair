@@ -74,7 +74,13 @@ export function HostPage(): React.ReactElement {
       signalingClient.on("guest.joined", (msg) => {
         const guestName = (msg.payload as { guestDeviceName?: string })?.guestDeviceName ?? "Guest";
         setGuestDeviceName(guestName);
-        void createPeerConnectionAsHost(selectedSourceId).catch(console.error);
+
+        // Get the current quality preset to pass to the peer connection
+        const currentPreset = selectedPreset === "Custom"
+          ? ({ ...customPreset, name: selectedPreset } as QualityPreset)
+          : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
+
+        void createPeerConnectionAsHost(selectedSourceId, currentPreset).catch(console.error);
         navigate("host-session");
       });
 

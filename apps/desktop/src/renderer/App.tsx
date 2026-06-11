@@ -5,13 +5,14 @@ import { HostPage } from "./routes/HostPage";
 import { GuestPage } from "./routes/GuestPage";
 import { SessionPage } from "./routes/SessionPage";
 import { SettingsPage } from "./routes/SettingsPage";
+import { ErrorPage } from "./routes/ErrorPage";
 
 export default function App(): React.ReactElement {
   const { currentRoute, error, setError } = useAppStore();
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      {error && (
+      {error && currentRoute !== "error" && (
         <div
           style={{
             padding: "10px 16px",
@@ -39,6 +40,7 @@ export default function App(): React.ReactElement {
         {currentRoute === "guest-join" && <GuestPage />}
         {currentRoute === "guest-session" && <SessionPage />}
         {currentRoute === "settings" && <SettingsPage />}
+        {currentRoute === "error" && <ErrorPage />}
       </div>
     </div>
   );

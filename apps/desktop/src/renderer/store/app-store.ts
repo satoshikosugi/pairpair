@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppRoute = "home" | "host-setup" | "host-waiting" | "host-session" | "guest-join" | "guest-session" | "settings" | "permissions";
+export type AppRoute = "home" | "host-setup" | "host-waiting" | "host-session" | "guest-join" | "guest-session" | "settings" | "permissions" | "error";
 
 interface AppState {
   currentRoute: AppRoute;

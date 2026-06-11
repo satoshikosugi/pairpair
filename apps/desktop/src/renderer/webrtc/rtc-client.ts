@@ -180,3 +180,57 @@ export function closePeerConnection(): void {
 export function getPeerConnection(): RTCPeerConnection | null {
   return peerConnection;
 }
+
+export async function applyQualityPreset(preset: import("@pairpair/shared").QualityPreset): Promise<void> {
+  const pc = getPeerConnection();
+  if (!pc) return;
+  const senders = pc.getSenders();
+  for (const sender of senders) {
+    if (sender.track?.kind === "video") {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) {
+        params.encodings = [{}];
+      }
+      params.encodings[0].maxBitrate = preset.bitrateMbps * 1_000_000;
+      params.encodings[0].maxFramerate = preset.fps;
+      try {
+        await sender.setParameters(params);
+      } catch (err) {
+        console.warn("setParameters failed, trying applyConstraints:", err);
+        if (sender.track) {
+          await sender.track
+            .applyConstraints({
+              width: { ideal: preset.width },
+              height: { ideal: preset.height },
+              frameRate: { ideal: preset.fps },
+            })
+            .catch(console.warn);
+        }
+      }
+    }
+  }
+}
+
+export function getAvailableVideoCodecs(): RTCRtpCodecCapability[] {
+  const capabilities = RTCRtpSender.getCapabilities?.("video");
+  return capabilities?.codecs ?? [];
+}
+
+export async function preferCodec(codecMimeType: string): Promise<void> {
+  const pc = getPeerConnection();
+  if (!pc) return;
+  const transceivers = pc.getTransceivers();
+  for (const transceiver of transceivers) {
+    if (transceiver.sender.track?.kind === "video") {
+      const caps = RTCRtpSender.getCapabilities?.("video");
+      if (!caps) return;
+      const preferred = caps.codecs.filter(
+        (c) => c.mimeType.toLowerCase() === codecMimeType.toLowerCase(),
+      );
+      const rest = caps.codecs.filter(
+        (c) => c.mimeType.toLowerCase() !== codecMimeType.toLowerCase(),
+      );
+      transceiver.setCodecPreferences([...preferred, ...rest]);
+    }
+  }
+}

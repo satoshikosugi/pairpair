@@ -58,7 +58,7 @@
 ### 0-4. apps/signaling-server 作成
 
 - [x] `apps/signaling-server/package.json` 作成
-- [x] 依存追加: `fastify`, `@fastify/cors`, `ws`, `ioredis`, `zod`, `pino`, `uuid`
+- [x] 依存追加: `fastify`, `@fastify/cors`, `ws`, `zod`, `pino`, `uuid`
 - [x] `tsconfig.json` 作成
 - [x] ビルドスクリプト設定（`tsc` or `tsup`）
 - [x] `src/index.ts` エントリポイント作成
@@ -85,7 +85,7 @@
 
 ### 1-1. Signaling Server — セッション管理
 
-- [x] `src/infra/redis.ts` — Redis クライアント初期化（IORedis）
+- [x] `src/infra/redis.ts` — 一時セッション管理（in-memory Map + タイマーベース TTL）
 - [x] `src/services/code-generator.ts` — 6〜8 桁コード生成（重複チェック付き）
 - [x] `src/services/session-service.ts`
   - [x] `createHostSession(deviceName, platform, appVersion)` → sessionId / code / hostToken / expiresAt
@@ -93,7 +93,7 @@
   - [x] `getSession(sessionId)` → セッション情報
   - [x] TTL 管理（code TTL: 10分、session TTL: 24時間）
   - [x] コード使用済みフラグ管理（再利用不可）
-  - [x] `closeSession(sessionId)` → Redis から削除
+  - [x] `closeSession(sessionId)` → メモリから削除
 
 ### 1-2. Signaling Server — REST API
 

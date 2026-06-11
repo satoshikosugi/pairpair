@@ -1,21 +1,25 @@
 import React, { useState, useEffect, useCallback } from "react";
-import type { KeyboardDownEvent, KeyboardUpEvent, TextInputEvent } from "@pairpair/shared";
+import type { KeyboardDownEvent, KeyboardUpEvent, TextInputEvent, QualityPresetName, QualityPreset } from "@pairpair/shared";
+import { QUALITY_PRESETS } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
 import { ConnectionStatus } from "../components/ConnectionStatus";
 import { StatsOverlay } from "../components/StatsOverlay";
 import { PermissionPanel } from "../components/PermissionPanel";
 import { RemoteVideoView } from "../components/RemoteVideoView";
-import { closePeerConnection } from "../webrtc/rtc-client";
+import { QualityPresetSelector } from "../components/QualityPresetSelector";
+import { closePeerConnection, applyQualityPreset } from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
 import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc/stats-monitor";
 import { dataChannelManager } from "../webrtc/data-channel";
 
 export function SessionPage(): React.ReactElement {
   const { navigate } = useAppStore();
-  const { role, hostDeviceName, guestDeviceName, connectionState, controlState } = useSessionStore();
+  const { role, hostDeviceName, guestDeviceName, connectionState, controlState, currentQualityPreset, customQualityPreset } = useSessionStore();
   const [stats, setStats] = useState<WebRTCStats>({});
   const [showStats, setShowStats] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(currentQualityPreset);
+  const [customPreset, setCustomPreset] = useState<Partial<QualityPreset>>(customQualityPreset);
   const isHost = role === "host";
 
   const handleDisconnect = useCallback(() => {
@@ -134,6 +138,25 @@ export function SessionPage(): React.ReactElement {
           }}
         >
           <div style={{ color: "#aaa", marginBottom: 8 }}>画面を共有中</div>
+
+          <div style={{ width: "100%", maxWidth: 400, marginTop: 24, marginBottom: 24 }}>
+            <h4 style={{ color: "#aaa", marginBottom: 12 }}>画質設定</h4>
+            <QualityPresetSelector
+              selected={selectedPreset}
+              customPreset={customPreset}
+              onChange={(preset, custom) => {
+                setSelectedPreset(preset);
+                if (custom) setCustomPreset(custom);
+                useSessionStore.getState().setCurrentQualityPreset(preset, custom);
+                
+                const qualityPreset = preset === "Custom"
+                  ? ({ ...custom, name: preset } as QualityPreset)
+                  : QUALITY_PRESETS[preset as Exclude<QualityPresetName, "Custom">];
+                void applyQualityPreset(qualityPreset).catch(console.error);
+              }}
+            />
+          </div>
+
           <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
             <button
               onClick={handleDisconnect}

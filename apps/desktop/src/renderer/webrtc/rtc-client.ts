@@ -12,7 +12,7 @@ function getIceServers(): RTCIceServer[] {
   return [{ urls: [stunServer] }];
 }
 
-export async function createPeerConnectionAsHost(_sourceId: string): Promise<RTCPeerConnection> {
+export async function createPeerConnectionAsHost(sourceId: string): Promise<RTCPeerConnection> {
   const pc = new RTCPeerConnection({
     iceServers: getIceServers(),
     iceTransportPolicy: "all",
@@ -32,10 +32,16 @@ export async function createPeerConnectionAsHost(_sourceId: string): Promise<RTC
   dataChannelManager.onControl((message: ControlMessage) => {
     if (message.type === "remoteControl.request") {
       useSessionStore.getState().setControlState("controlRequested");
+    } else if (message.type === "remoteControl.grabbed") {
+      // Guest took control without waiting for approval
+      useSessionStore.getState().setControlState("controlAllowed");
     } else if (message.type === "ping") {
       dataChannelManager.sendControl({ type: "pong", timestamp: message.timestamp });
     }
   });
+
+  // Tell main process which source to use before getDisplayMedia fires
+  await window.pairpair.setSelectedSource(sourceId);
 
   try {
     localStream = await navigator.mediaDevices.getDisplayMedia({
@@ -71,6 +77,11 @@ export async function createPeerConnectionAsHost(_sourceId: string): Promise<RTC
     useSessionStore.getState().setConnectionState(
       pc.connectionState as "idle" | "connecting" | "connected" | "disconnected" | "failed"
     );
+
+    // When host closes connection, notify guest
+    if (pc.connectionState === "closed" || pc.connectionState === "failed") {
+      dataChannelManager.sendControl({ type: "session.ended" });
+    }
   };
 
   pc.oniceconnectionstatechange = () => {
@@ -110,6 +121,10 @@ export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> 
     } else if (message.type === "remoteControl.paused") {
       useSessionStore.getState().setControlState("controlPaused");
     }
+  });
+
+  dataChannelManager.onSessionEnded(() => {
+    useSessionStore.getState().emitSessionEnded();
   });
 
   pc.ontrack = (event) => {

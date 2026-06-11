@@ -5,21 +5,13 @@ import { WebSocketServer } from "ws";
 import { healthRoutes } from "./routes/health";
 import { sessionRoutes } from "./routes/sessions";
 import { handleSignalingConnection } from "./ws/signaling";
-import { connectRedis, closeRedis } from "./infra/redis";
+import { sessionStore } from "./infra/redis";
 import { logger } from "./infra/logger";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
 
 async function main(): Promise<void> {
-  // Connect to Redis
-  try {
-    await connectRedis();
-  } catch (err) {
-    logger.error({ err }, "Failed to connect to Redis");
-    process.exit(1);
-  }
-
   // Create Fastify instance
   const fastify = Fastify({
     logger: false, // Use pino directly
@@ -76,7 +68,7 @@ async function main(): Promise<void> {
     logger.info({ signal }, "Shutting down");
     wss.close();
     await fastify.close();
-    await closeRedis();
+    sessionStore.shutdown();
     process.exit(0);
   };
 

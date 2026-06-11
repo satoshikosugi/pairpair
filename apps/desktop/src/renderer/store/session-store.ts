@@ -1,8 +1,11 @@
 import { create } from "zustand";
+import type { QualityPreset, QualityPresetName } from "@pairpair/shared";
 
 export type ControlState = "viewOnly" | "controlRequested" | "controlAllowed" | "controlPaused" | "controlRevoked";
 export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "failed";
 export type SessionRole = "host" | "guest" | null;
+
+type OnSessionEndedHandler = () => void;
 
 interface SessionState {
   sessionId: string | null;
@@ -16,6 +19,8 @@ interface SessionState {
   guestDeviceName: string | null;
   selectedSourceId: string | null;
   expiresAt: string | null;
+  currentQualityPreset: QualityPresetName;
+  customQualityPreset: Partial<QualityPreset>;
 
   setSessionId: (id: string | null) => void;
   setCode: (code: string | null) => void;
@@ -28,6 +33,9 @@ interface SessionState {
   setGuestDeviceName: (name: string | null) => void;
   setSelectedSourceId: (id: string | null) => void;
   setExpiresAt: (at: string | null) => void;
+  setCurrentQualityPreset: (preset: QualityPresetName, custom?: Partial<QualityPreset>) => void;
+  onSessionEnded: (handler: OnSessionEndedHandler) => void;
+  emitSessionEnded: () => void;
   reset: () => void;
 }
 
@@ -43,7 +51,11 @@ const initialState = {
   guestDeviceName: null,
   selectedSourceId: null,
   expiresAt: null,
+  currentQualityPreset: "Balanced" as QualityPresetName,
+  customQualityPreset: {} as Partial<QualityPreset>,
 };
+
+let sessionEndedHandlers: OnSessionEndedHandler[] = [];
 
 export const useSessionStore = create<SessionState>((set) => ({
   ...initialState,
@@ -58,5 +70,18 @@ export const useSessionStore = create<SessionState>((set) => ({
   setGuestDeviceName: (name) => set({ guestDeviceName: name }),
   setSelectedSourceId: (id) => set({ selectedSourceId: id }),
   setExpiresAt: (at) => set({ expiresAt: at }),
-  reset: () => set(initialState),
+  setCurrentQualityPreset: (preset, custom) => set({
+    currentQualityPreset: preset,
+    customQualityPreset: custom ?? {},
+  }),
+  onSessionEnded: (handler) => {
+    sessionEndedHandlers.push(handler);
+  },
+  emitSessionEnded: () => {
+    sessionEndedHandlers.forEach((h) => h());
+  },
+  reset: () => {
+    set(initialState);
+    sessionEndedHandlers = [];
+  },
 }));

@@ -68,14 +68,11 @@ export function PermissionPanel({ role }: PermissionPanelProps): React.ReactElem
 
   return (
     <div style={{ padding: 12, background: "rgba(0,0,0,0.5)", borderTop: "1px solid #333" }}>
-      {controlState === "viewOnly" && (
-        <button onClick={handleRequestControl} style={btnStyle("#4a9eff")}>
-          操作をリクエスト
-        </button>
+      {(controlState === "viewOnly" || controlState === "controlRequested") && (
+        <span style={{ color: "#888", fontSize: 13 }}>画面をクリックして操作を開始</span>
       )}
-      {controlState === "controlRequested" && <span style={{ color: "#ffa500" }}>操作リクエスト中...</span>}
       {controlState === "controlAllowed" && <span style={{ color: "#00c851" }}>操作中</span>}
-      {controlState === "controlPaused" && <span style={{ color: "#ffa500" }}>操作一時停止中</span>}
+      {controlState === "controlPaused" && <span style={{ color: "#ffa500" }}>操作一時停止中（ホストが再開するまで待機）</span>}
       {controlState === "controlRevoked" && <span style={{ color: "#ff4444" }}>操作権限が取り消されました</span>}
     </div>
   );

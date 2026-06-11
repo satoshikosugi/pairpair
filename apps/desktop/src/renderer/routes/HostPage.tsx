@@ -6,7 +6,8 @@ import { useSettingsStore } from "../store/settings-store";
 import { ScreenSourcePicker } from "../components/ScreenSourcePicker";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
 import { signalingClient } from "../webrtc/signaling-client";
-import { createPeerConnectionAsHost } from "../webrtc/rtc-client";
+import { createPeerConnectionAsHost, applyQualityPreset } from "../webrtc/rtc-client";
+import { QUALITY_PRESETS } from "@pairpair/shared";
 
 const SERVER_URL = "http://localhost:8080";
 
@@ -50,7 +51,11 @@ export function HostPage(): React.ReactElement {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to create session");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({})) as { error?: string; code?: string };
+        throw new Error(`セッション作成エラー: ${errorData.error || res.statusText} (${res.status})`);
+      }
+      
       const data = (await res.json()) as {
         sessionId: string;
         code: string;
@@ -179,6 +184,15 @@ export function HostPage(): React.ReactElement {
           onChange={(preset, custom) => {
             setSelectedPreset(preset);
             if (custom) setCustomPreset(custom);
+            useSessionStore.getState().setCurrentQualityPreset(preset, custom);
+            
+            // Apply immediately if already connected
+            if (useSessionStore.getState().connectionState === "connected") {
+              const qualityPreset = preset === "Custom"
+                ? ({ ...custom, name: preset } as QualityPreset)
+                : QUALITY_PRESETS[preset as Exclude<QualityPresetName, "Custom">];
+              void applyQualityPreset(qualityPreset).catch(console.error);
+            }
           }}
         />
       </div>

@@ -12,10 +12,10 @@ pub fn move_mouse(x: i32, y: i32) {
       r#type: INPUT_MOUSE,
       Anonymous: INPUT_0 {
         mi: MOUSEINPUT {
-          dx: x,
-          dy: y,
+          dx: 0,
+          dy: 0,
           mouseData: 0,
-          dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+          dwFlags: MOUSEEVENTF_MOVE,
           time: 0,
           dwExtraInfo: 0,
         },
@@ -34,14 +34,15 @@ pub fn mouse_button(button: u8, down: bool, x: i32, y: i32) {
   };
   let flag = if down { down_flag } else { up_flag };
   unsafe {
+    let _ = SetCursorPos(x, y);
     let input = INPUT {
       r#type: INPUT_MOUSE,
       Anonymous: INPUT_0 {
         mi: MOUSEINPUT {
-          dx: x,
-          dy: y,
+          dx: 0,
+          dy: 0,
           mouseData: 0,
-          dwFlags: flag | MOUSEEVENTF_ABSOLUTE,
+          dwFlags: flag,
           time: 0,
           dwExtraInfo: 0,
         },
@@ -53,15 +54,16 @@ pub fn mouse_button(button: u8, down: bool, x: i32, y: i32) {
 
 pub fn mouse_scroll(delta_x: i32, delta_y: i32, x: i32, y: i32) {
   unsafe {
+    let _ = SetCursorPos(x, y);
     if delta_y != 0 {
       let input = INPUT {
         r#type: INPUT_MOUSE,
         Anonymous: INPUT_0 {
           mi: MOUSEINPUT {
-            dx: x,
-            dy: y,
+            dx: 0,
+            dy: 0,
             mouseData: delta_y as u32,
-            dwFlags: MOUSEEVENTF_WHEEL | MOUSEEVENTF_ABSOLUTE,
+            dwFlags: MOUSEEVENTF_WHEEL,
             time: 0,
             dwExtraInfo: 0,
           },
@@ -74,10 +76,10 @@ pub fn mouse_scroll(delta_x: i32, delta_y: i32, x: i32, y: i32) {
         r#type: INPUT_MOUSE,
         Anonymous: INPUT_0 {
           mi: MOUSEINPUT {
-            dx: x,
-            dy: y,
+            dx: 0,
+            dy: 0,
             mouseData: delta_x as u32,
-            dwFlags: MOUSEEVENTF_HWHEEL | MOUSEEVENTF_ABSOLUTE,
+            dwFlags: MOUSEEVENTF_HWHEEL,
             time: 0,
             dwExtraInfo: 0,
           },

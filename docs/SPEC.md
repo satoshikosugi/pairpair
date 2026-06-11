@@ -152,7 +152,7 @@ Tupleのようなペアプロ用途のリモート操作アプリを、より軽
 | --------- | ---------------------------------- |
 | API       | Node.js + Fastify                  |
 | WebSocket | ws                                 |
-| 一時セッション管理 | Redis                              |
+| 一時セッション管理 | メモリ内 Map + JavaScript タイマー         |
 | DB        | 初期版は不要。監査ログが必要ならPostgreSQL         |
 | デプロイ      | Cloud Run / VPS / Fly.io / Render等 |
 | TLS       | 必須                                 |

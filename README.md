@@ -100,6 +100,72 @@ cd pairpair
 pnpm install
 ```
 
+### ローカルでのホスト・ゲストテスト
+
+ホストとゲストを両方立ち上げてテストする場合：
+
+#### セットアップ確認（推奨）
+
+まずセットアップが正しくできているか確認します：
+
+```batch
+# Windows コマンドプロンプト
+check-setup.bat
+```
+
+または PowerShell：
+
+```powershell
+# PowerShell
+.\check-setup.ps1
+```
+
+#### クイックスタート（Windows）
+
+```batch
+# Windows コマンドプロンプト
+start-local-test.bat
+```
+
+または PowerShell：
+
+```powershell
+# PowerShell
+.\start-local-test.ps1
+```
+
+#### 手動セットアップ
+
+**ターミナル 1: Redis を起動**
+```bash
+docker run -d -p 6379:6379 redis:latest
+```
+
+**ターミナル 2: Signaling Server を起動**
+```bash
+npx pnpm@9 dev --cwd apps/signaling-server
+```
+
+**ターミナル 3: Host App を起動**
+```bash
+npx pnpm@9 dev --cwd apps/desktop
+```
+
+**ターミナル 4: Guest App を起動（Host 起動後）**
+```bash
+npx pnpm@9 dev --cwd apps/desktop
+```
+
+#### テスト手順
+
+1. Host ウィンドウで **「ホストとして開始」** をクリック
+2. 画面共有権限を許可
+3. セッションコードをコピー
+4. Guest ウィンドウで **「ゲストとして接続」** をクリック
+5. コードをペーストして接続
+
+詳細は [LOCAL_TEST_GUIDE.md](LOCAL_TEST_GUIDE.md) を参照。
+
 ### AI による実装
 
 GitHub Issues でタスクを切り、AI エージェント（GitHub Copilot）が以下に従って実装します：

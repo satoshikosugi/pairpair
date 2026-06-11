@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("pairpair", {
 
   // Screen
   getScreenSources: () => ipcRenderer.invoke("screen:getSources"),
+  setSelectedSource: (sourceId: string) => ipcRenderer.invoke("screen:setSelectedSource", sourceId),
 
   // Permissions
   checkPermissions: () => ipcRenderer.invoke("permissions:check"),
@@ -38,6 +39,7 @@ declare global {
     pairpair: {
       platform: "darwin" | "win32" | "linux";
       getScreenSources: () => Promise<ScreenSource[]>;
+      setSelectedSource: (sourceId: string) => Promise<boolean>;
       checkPermissions: () => Promise<{ screenRecording: boolean; accessibility: boolean }>;
       openSystemSettings: (type: string) => Promise<void>;
       getSettings: (key?: string) => Promise<unknown>;

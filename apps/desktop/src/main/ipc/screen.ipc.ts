@@ -1,5 +1,12 @@
-import { ipcMain, desktopCapturer } from "electron";
+import { ipcMain, desktopCapturer, screen } from "electron";
 import log from "electron-log";
+import { setCaptureArea } from "../native/input-controller";
+
+let _selectedSourceId: string | null = null;
+
+export function getSelectedSourceId(): string | null {
+  return _selectedSourceId;
+}
 
 export function setupScreenIpc(): void {
   ipcMain.handle("screen:getSources", async () => {
@@ -20,5 +27,28 @@ export function setupScreenIpc(): void {
       log.error("screen:getSources error:", err);
       throw err;
     }
+  });
+
+  ipcMain.handle("screen:setSelectedSource", async (_event, sourceId: string) => {
+    _selectedSourceId = sourceId;
+    try {
+      const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
+      const source = sources.find((s) => s.id === sourceId);
+      const displays = screen.getAllDisplays();
+      const display = source?.display_id
+        ? (displays.find((d) => String(d.id) === source.display_id) ?? displays[0])
+        : displays[0];
+      setCaptureArea({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+        scaleFactor: display.scaleFactor,
+      });
+      log.info({ sourceId, display: display.id, bounds: display.bounds }, "Selected source and capture area set");
+    } catch (err) {
+      log.error("screen:setSelectedSource error:", err);
+    }
+    return true;
   });
 }

@@ -3,6 +3,7 @@ import type { MouseMoveEvent, MouseDownEvent, MouseUpEvent, MouseWheelEvent } fr
 import { toNormalizedCoordinate } from "../utils/coordinate";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";
+// Note: useSessionStore is used directly (not via hook) for non-render state updates
 
 const MOUSE_MOVE_INTERVAL_MS = 16;
 
@@ -56,10 +57,15 @@ export function RemoteVideoView({ stream }: RemoteVideoViewProps): React.ReactEl
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
-      if (!canControl || !videoRef.current) return;
+      if (!videoRef.current) return;
+      // Click-to-control: take control on first click without needing host approval
+      if (!canControl) {
+        useSessionStore.getState().setControlState("controlAllowed");
+        dataChannelManager.sendControl({ type: "remoteControl.grabbed" });
+        return;
+      }
       const coords = toNormalizedCoordinate(videoRef.current, e.clientX, e.clientY);
       if (!coords) return;
-
       const button = e.button === 0 ? "left" : e.button === 2 ? "right" : "middle";
       const event: MouseDownEvent = { type: "mouse.down", button, x: coords.x, y: coords.y };
       dataChannelManager.sendInput(event);

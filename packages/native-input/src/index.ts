@@ -18,9 +18,9 @@ let nativeModule: NativeInputModule | null = null;
 
 function loadNativeModule(): NativeInputModule | null {
   try {
-    // Try to load the compiled native addon
+    // Load the napi-rs generated binding at package root (index.win32-x64-msvc.node etc.)
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const addon = require("../native/index.node");
+    const addon = require("../index.js");
     return addon as NativeInputModule;
   } catch {
     console.warn("[native-input] Native addon not available, using stub");

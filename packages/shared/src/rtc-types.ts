@@ -6,6 +6,10 @@ export interface RemoteControlGrantedMessage {
   type: "remoteControl.granted";
 }
 
+export interface RemoteControlGrabbedMessage {
+  type: "remoteControl.grabbed";
+}
+
 export interface RemoteControlRevokedMessage {
   type: "remoteControl.revoked";
 }
@@ -46,13 +50,19 @@ export interface InputLatencyMessage {
   hostReceivedTimestamp: number;
 }
 
+export interface SessionEndedMessage {
+  type: "session.ended";
+}
+
 export type ControlMessage =
   | RemoteControlRequestMessage
   | RemoteControlGrantedMessage
+  | RemoteControlGrabbedMessage
   | RemoteControlRevokedMessage
   | RemoteControlPausedMessage
   | QualityChangeMessage
   | PingMessage
   | PongMessage
   | StatsReportMessage
-  | InputLatencyMessage;
+  | InputLatencyMessage
+  | SessionEndedMessage;

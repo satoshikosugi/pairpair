@@ -1,6 +1,7 @@
 import { app, BrowserWindow, desktopCapturer, globalShortcut, session } from "electron";
 import path from "path";
 import { setupIpcHandlers } from "./ipc";
+import { getSelectedSourceId } from "./ipc/screen.ipc";
 import log from "electron-log";
 
 // Hardware encoding flags (must be set before app.ready)
@@ -50,8 +51,12 @@ app.whenReady().then(() => {
     desktopCapturer
       .getSources({ types: ["screen", "window"] })
       .then((sources) => {
-        // Return the first screen source by default; actual selection done via IPC
-        callback({ video: sources[0] });
+        const sourceId = getSelectedSourceId();
+        const selected = sourceId
+          ? (sources.find((s) => s.id === sourceId) ?? sources[0])
+          : sources[0];
+        log.info({ sourceId, selectedName: selected?.name }, "Display media request handled");
+        callback({ video: selected });
       })
       .catch((err) => {
         log.error("desktopCapturer.getSources error:", err);

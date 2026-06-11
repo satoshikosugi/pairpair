@@ -2,6 +2,7 @@ import type { ControlMessage, InputEvent } from "@pairpair/shared";
 
 type ControlMessageHandler = (message: ControlMessage) => void;
 type InputMessageHandler = (message: InputEvent) => void;
+type SessionEndedHandler = () => void;
 
 export class DataChannelManager {
   private controlChannel: RTCDataChannel | null = null;
@@ -9,6 +10,7 @@ export class DataChannelManager {
   private inputReliableChannel: RTCDataChannel | null = null;
   private controlHandlers: ControlMessageHandler[] = [];
   private inputHandlers: InputMessageHandler[] = [];
+  private sessionEndedHandlers: SessionEndedHandler[] = [];
 
   setupAsHost(pc: RTCPeerConnection): void {
     this.controlChannel = pc.createDataChannel("control", { ordered: true });
@@ -40,10 +42,17 @@ export class DataChannelManager {
     channel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data as string) as ControlMessage;
+        if (message.type === "session.ended") {
+          this.sessionEndedHandlers.forEach((h) => h());
+        }
         this.controlHandlers.forEach((h) => h(message));
       } catch {
         console.warn("Failed to parse control message");
       }
+    };
+
+    channel.onclose = () => {
+      this.sessionEndedHandlers.forEach((h) => h());
     };
   }
 
@@ -82,10 +91,15 @@ export class DataChannelManager {
     this.inputHandlers.push(handler);
   }
 
+  onSessionEnded(handler: SessionEndedHandler): void {
+    this.sessionEndedHandlers.push(handler);
+  }
+
   close(): void {
     this.controlChannel?.close();
     this.inputChannel?.close();
     this.inputReliableChannel?.close();
+    this.sessionEndedHandlers = [];
   }
 
   get isReady(): boolean {

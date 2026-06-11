@@ -34,7 +34,10 @@ export function GuestPage(): React.ReactElement {
 
       if (res.status === 404) throw new Error("コードが見つかりません（期限切れか無効）");
       if (res.status === 409) throw new Error("このコードは既に使用されています");
-      if (!res.ok) throw new Error("接続に失敗しました");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(`接続エラー: ${errorData.error || res.statusText}`);
+      }
 
       const data = (await res.json()) as { sessionId: string; guestToken: string; hostDeviceName: string; wsUrl: string };
 

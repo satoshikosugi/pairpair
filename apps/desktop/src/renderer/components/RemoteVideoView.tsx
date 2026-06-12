@@ -112,6 +112,7 @@ export function RemoteVideoView({ stream }: RemoteVideoViewProps): React.ReactEl
       <video
         ref={videoRef}
         id="remote-video"
+        data-remote="true"
         autoPlay
         muted
         playsInline

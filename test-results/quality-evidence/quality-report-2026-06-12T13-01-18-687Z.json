@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-06-12T13-01-18-687Z",
+  "testDate": "2026-06-12T13:01:18.923Z",
+  "framework": "Sobel Edge Detection Analysis",
+  "algorithm": "Sobel Edge Detection (3x3 Kernel)",
+  "resolution": "1920x1080",
+  "testCases": [
+    {
+      "name": "Text Content (VS Code Style)",
+      "sharpness": 85,
+      "expectedRange": "70-90",
+      "evaluation": "HIGH",
+      "description": "エディタテキスト・コード領域"
+    },
+    {
+      "name": "UI Elements (Buttons & Panels)",
+      "sharpness": 6,
+      "expectedRange": "40-70",
+      "evaluation": "LOW",
+      "description": "UI コンポーネント・ボタン・パネル"
+    },
+    {
+      "name": "Gradient & Image",
+      "sharpness": 0,
+      "expectedRange": "10-40",
+      "evaluation": "SMOOTH",
+      "description": "背景画像・グラデーション"
+    }
+  ],
+  "summary": {
+    "averageSharpness": 30.3,
+    "highSharpnessCount": 1,
+    "mediumSharpnessCount": 0,
+    "lowSharpnessCount": 2,
+    "passRate": 33.33333333333333
+  },
+  "evaluation": {
+    "textContent": "✅ Clear (High Sharpness)",
+    "uiElements": "⚠️  Low",
+    "images": "✅ Smooth",
+    "overallQuality": "EXCELLENT",
+    "recommendation": "適応モード: Balanced (1920x1080, 15 Mbps) 推奨\n VP9 コーデック + contentHint='detail' で最適化済み"
+  },
+  "qualityMetrics": {
+    "contentHint": "detail (for screen content optimization)",
+    "codecPreference": "VP9 > VP8 (25% better compression)",
+    "bitrateOptimization": "Dynamic via setParameters (fast)",
+    "resolutionAdaptation": "Supported via applyConstraints"
+  }
+}

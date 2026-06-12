@@ -9,9 +9,10 @@ import { StatsOverlay } from "../components/StatsOverlay";
 import { PermissionPanel } from "../components/PermissionPanel";
 import { RemoteVideoView } from "../components/RemoteVideoView";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
-import { closePeerConnection, applyQualityPreset, setAdaptiveParameters } from "../webrtc/rtc-client";
+import { closePeerConnection, applyQualityPreset, setAdaptiveParameters, getPeerConnection } from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
 import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc/stats-monitor";
+import { startMetricsCollection, startSharpnessAnalysis } from "../utils/quality-metrics";
 import { dataChannelManager } from "../webrtc/data-channel";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 
@@ -30,6 +31,8 @@ export function SessionPage(): React.ReactElement {
   );
   const adaptiveInputHandlerRef = useRef<((e: InputEvent) => void) | null>(null);
   const hasAutoEnabledRef = useRef(false);
+  const metricsStopRef = useRef<(() => void) | null>(null);
+  const sharpnessStopRef = useRef<(() => void) | null>(null);
   const isHost = role === "host";
 
   const STATE_LABEL: Record<string, string> = {
@@ -125,6 +128,36 @@ export function SessionPage(): React.ReactElement {
       void window.pairpair.stopActivityMonitor();
     };
   }, [isHost, adaptiveMode]);
+
+  // Guest-side: auto-collect WebRTC quality metrics and frame sharpness
+  useEffect(() => {
+    if (isHost) return; // Only for guest
+
+    const pc = getPeerConnection();
+    if (!pc) return; // Wait for peer connection
+
+    console.log("[QualityTest] Starting metrics collection for guest role");
+
+    // Collect WebRTC stats every 5 seconds
+    metricsStopRef.current = startMetricsCollection(pc, 5000);
+
+    // Find remote video element and analyze sharpness every 10 seconds
+    const videoEl = document.querySelector("video[data-remote]") as HTMLVideoElement | null;
+    if (videoEl) {
+      sharpnessStopRef.current = startSharpnessAnalysis(videoEl, 10000);
+    }
+
+    return () => {
+      if (metricsStopRef.current) {
+        metricsStopRef.current();
+        metricsStopRef.current = null;
+      }
+      if (sharpnessStopRef.current) {
+        sharpnessStopRef.current();
+        sharpnessStopRef.current = null;
+      }
+    };
+  }, [isHost]);
 
   // Sync adaptive state label every 500ms when adaptive mode is on
   useEffect(() => {

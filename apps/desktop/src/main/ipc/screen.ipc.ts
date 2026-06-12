@@ -1,6 +1,7 @@
 import { ipcMain, desktopCapturer, screen } from "electron";
 import log from "electron-log";
 import { setCaptureArea } from "../native/input-controller";
+import { setHostOverlayBounds } from "../overlay/host-overlay";
 
 let _selectedSourceId: string | null = null;
 
@@ -45,6 +46,7 @@ export function setupScreenIpc(): void {
         height: display.bounds.height,
         scaleFactor: display.scaleFactor,
       });
+      setHostOverlayBounds(display.bounds);
       log.info({ sourceId, display: display.id, bounds: display.bounds }, "Selected source and capture area set");
     } catch (err) {
       log.error("screen:setSelectedSource error:", err);

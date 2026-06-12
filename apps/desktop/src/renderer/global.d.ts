@@ -1,4 +1,4 @@
-import type { InputEvent } from "@pairpair/shared";
+import type { HostOverlayState, InputEvent } from "@pairpair/shared";
 
 interface ScreenSource {
   id: string;
@@ -13,6 +13,7 @@ declare global {
     pairpair: {
       platform: "darwin" | "win32" | "linux";
       getScreenSources: () => Promise<ScreenSource[]>;
+      setSelectedSource: (sourceId: string) => Promise<boolean>;
       checkPermissions: () => Promise<{ screenRecording: boolean; accessibility: boolean }>;
       openSystemSettings: (type: string) => Promise<void>;
       getSettings: (key?: string) => Promise<unknown>;
@@ -21,8 +22,18 @@ declare global {
       injectInput: (event: InputEvent) => Promise<boolean>;
       registerShortcuts: (isHost: boolean) => Promise<void>;
       unregisterShortcuts: () => Promise<void>;
+      setGuestFullscreen: (fullscreen: boolean) => Promise<boolean>;
       onShortcut: (callback: (action: string) => void) => void;
       removeShortcutListener: () => void;
+      onFullscreenChanged: (callback: (fullscreen: boolean) => void) => void;
+      removeFullscreenChangedListener: () => void;
+      startActivityMonitor: () => Promise<void>;
+      stopActivityMonitor: () => Promise<void>;
+      onSystemActivity: (callback: () => void) => void;
+      removeSystemActivityListener: () => void;
+      showHostOverlay: () => Promise<void>;
+      hideHostOverlay: () => Promise<void>;
+      updateHostOverlay: (state: HostOverlayState) => Promise<void>;
     };
   }
 }

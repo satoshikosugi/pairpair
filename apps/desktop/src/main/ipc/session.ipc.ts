@@ -1,6 +1,6 @@
 import { ipcMain, globalShortcut } from "electron";
 import log from "electron-log";
-import { sendToRenderer } from "../window";
+import { getMainWindow, sendToRenderer } from "../window";
 
 export function setupSessionIpc(): void {
   ipcMain.handle("session:registerShortcuts", (_event, isHost: boolean) => {
@@ -42,5 +42,16 @@ export function setupSessionIpc(): void {
 
   ipcMain.handle("session:unregisterShortcuts", () => {
     globalShortcut.unregisterAll();
+  });
+
+  ipcMain.handle("session:setGuestFullscreen", (_event, fullscreen: boolean) => {
+    const win = getMainWindow();
+    if (!win) return false;
+
+    win.setAutoHideMenuBar(fullscreen);
+    win.setMenuBarVisibility(!fullscreen);
+    win.setFullScreen(fullscreen);
+    sendToRenderer("session:fullscreen-changed", fullscreen);
+    return true;
   });
 }

@@ -1,3 +1,5 @@
+import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator } from "./annotation";
+
 export interface RemoteControlRequestMessage {
   type: "remoteControl.request";
 }
@@ -54,6 +56,36 @@ export interface SessionEndedMessage {
   type: "session.ended";
 }
 
+export interface AnnotationStrokeBeginMessage {
+  type: "annotation.stroke.begin";
+  stroke: Omit<AnnotationStroke, "points">;
+  point: AnnotationPoint;
+}
+
+export interface AnnotationStrokeAppendMessage {
+  type: "annotation.stroke.append";
+  strokeId: string;
+  point: AnnotationPoint;
+}
+
+export interface AnnotationStrokeEndMessage {
+  type: "annotation.stroke.end";
+  strokeId: string;
+}
+
+export interface AnnotationUndoMessage {
+  type: "annotation.undo";
+}
+
+export interface AnnotationClearMessage {
+  type: "annotation.clear";
+}
+
+export interface GuestCursorMessage {
+  type: "guest.cursor";
+  cursor: GuestCursorIndicator;
+}
+
 export type ControlMessage =
   | RemoteControlRequestMessage
   | RemoteControlGrantedMessage
@@ -65,4 +97,10 @@ export type ControlMessage =
   | PongMessage
   | StatsReportMessage
   | InputLatencyMessage
-  | SessionEndedMessage;
+  | SessionEndedMessage
+  | AnnotationStrokeBeginMessage
+  | AnnotationStrokeAppendMessage
+  | AnnotationStrokeEndMessage
+  | AnnotationUndoMessage
+  | AnnotationClearMessage
+  | GuestCursorMessage;

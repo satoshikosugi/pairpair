@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { InputEvent } from "@pairpair/shared";
+import type { HostOverlayState, InputEvent } from "@pairpair/shared";
 
 // Expose only specific, named wrappers - never expose ipcRenderer.send directly
 contextBridge.exposeInMainWorld("pairpair", {
@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("pairpair", {
   // Session shortcuts
   registerShortcuts: (isHost: boolean) => ipcRenderer.invoke("session:registerShortcuts", isHost),
   unregisterShortcuts: () => ipcRenderer.invoke("session:unregisterShortcuts"),
+  setGuestFullscreen: (fullscreen: boolean) => ipcRenderer.invoke("session:setGuestFullscreen", fullscreen),
 
   // Event listeners
   onShortcut: (callback: (action: string) => void) => {
@@ -31,6 +32,12 @@ contextBridge.exposeInMainWorld("pairpair", {
   },
   removeShortcutListener: () => {
     ipcRenderer.removeAllListeners("session:shortcut");
+  },
+  onFullscreenChanged: (callback: (fullscreen: boolean) => void) => {
+    ipcRenderer.on("session:fullscreen-changed", (_event, fullscreen: boolean) => callback(fullscreen));
+  },
+  removeFullscreenChangedListener: () => {
+    ipcRenderer.removeAllListeners("session:fullscreen-changed");
   },
 
   // System-wide activity monitor (for host adaptive quality)
@@ -42,6 +49,11 @@ contextBridge.exposeInMainWorld("pairpair", {
   removeSystemActivityListener: () => {
     ipcRenderer.removeAllListeners("activity:detected");
   },
+
+  // Host overlay window
+  showHostOverlay: () => ipcRenderer.invoke("overlay:show"),
+  hideHostOverlay: () => ipcRenderer.invoke("overlay:hide"),
+  updateHostOverlay: (state: HostOverlayState) => ipcRenderer.invoke("overlay:update", state),
 });
 
 declare global {
@@ -58,12 +70,18 @@ declare global {
       injectInput: (event: InputEvent) => Promise<boolean>;
       registerShortcuts: (isHost: boolean) => Promise<void>;
       unregisterShortcuts: () => Promise<void>;
+      setGuestFullscreen: (fullscreen: boolean) => Promise<boolean>;
       onShortcut: (callback: (action: string) => void) => void;
       removeShortcutListener: () => void;
+      onFullscreenChanged: (callback: (fullscreen: boolean) => void) => void;
+      removeFullscreenChangedListener: () => void;
       startActivityMonitor: () => Promise<void>;
       stopActivityMonitor: () => Promise<void>;
       onSystemActivity: (callback: () => void) => void;
       removeSystemActivityListener: () => void;
+      showHostOverlay: () => Promise<void>;
+      hideHostOverlay: () => Promise<void>;
+      updateHostOverlay: (state: HostOverlayState) => Promise<void>;
     };
   }
 

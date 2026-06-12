@@ -15,6 +15,9 @@ Electron + WebRTC で構成し、P2P での画面共有とリモートコント�
 
 - [SPEC.md](docs/SPEC.md) — 全仕様・API・プロトコル・UI・セキュリティ詳細
 - [TASK.md](docs/TASK.md) — 実装タスクチェックリスト（Phase 0〜5）
+- [IMPLEMENTATION_AUDIT.md](docs/IMPLEMENTATION_AUDIT.md) — 現行実装の棚卸し
+- [RUNBOOK.md](docs/RUNBOOK.md) — 起動手順と依存関係
+- [OPEN_ISSUES.md](docs/OPEN_ISSUES.md) — 問題点と改善タスク
 - [.github/copilot-instructions.md](.github/copilot-instructions.md) — AI 実装ガイドライン
 
 ## プロジェクト構成
@@ -30,6 +33,9 @@ pairpair/
   docs/
     SPEC.md           # 仕様書
     TASK.md           # 実装タスク
+    IMPLEMENTATION_AUDIT.md
+    RUNBOOK.md
+    OPEN_ISSUES.md
 ```
 
 ## 技術スタック
@@ -53,7 +59,7 @@ pairpair/
 |------|------|
 | API | Node.js + Fastify |
 | WebSocket | ws |
-| セッション管理 | Redis |
+| セッション管理 | In-memory session store |
 | バリデーション | Zod |
 | ログ | Pino |
 
@@ -65,18 +71,26 @@ pairpair/
 | モノレポ | Turborepo |
 | 言語 | TypeScript 5.x |
 
-## 実装フェーズ
+## 現在の実装状況
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| Phase 0 | リポジトリ・環境構築・型定義 | ⏳ 予定 |
-| Phase 1 | P2P 画面共有（最小） | ⏳ 予定 |
-| Phase 2 | 画質設定 | ⏳ 予定 |
-| Phase 3 | マウス操作 | ⏳ 予定 |
-| Phase 4 | キーボード操作 | ⏳ 予定 |
-| Phase 5 | 安定化・パッケージング | ⏳ 予定 |
+| Phase 0 | リポジトリ・環境構築・型定義 | 実装済み |
+| Phase 1 | P2P 画面共有（最小） | 実装済み |
+| Phase 2 | 画質設定 | 実装済み |
+| Phase 3 | マウス操作 | 実装済み |
+| Phase 4 | キーボード操作 | 実装済み |
+| Phase 5 | 安定化・パッケージング | 一部実装 |
 
 詳細は [TASK.md](docs/TASK.md) を参照。
+
+追加で、以下も実装済みです。
+
+- ゲストのマーカー注釈
+- Undo / 全削除
+- ゲスト全画面表示
+- `ESC` 2回による全画面解除
+- 非操作時ゲストカーソルのホスト投影
 
 ## 重要な制約
 
@@ -136,24 +150,19 @@ start-local-test.bat
 
 #### 手動セットアップ
 
-**ターミナル 1: Redis を起動**
-```bash
-docker run -d -p 6379:6379 redis:latest
+**ターミナル 1: Signaling Server を起動**
+```powershell
+npx pnpm@11 --dir apps/signaling-server dev
 ```
 
-**ターミナル 2: Signaling Server を起動**
-```bash
-npx pnpm@9 dev --cwd apps/signaling-server
+**ターミナル 2: Host App を起動**
+```powershell
+npx pnpm@11 --dir apps/desktop dev
 ```
 
-**ターミナル 3: Host App を起動**
-```bash
-npx pnpm@9 dev --cwd apps/desktop
-```
-
-**ターミナル 4: Guest App を起動（Host 起動後）**
-```bash
-npx pnpm@9 dev --cwd apps/desktop
+**ターミナル 3: Guest App を起動（Host 起動後）**
+```powershell
+npx pnpm@11 --dir apps/desktop dev
 ```
 
 #### テスト手順
@@ -163,8 +172,10 @@ npx pnpm@9 dev --cwd apps/desktop
 3. セッションコードをコピー
 4. Guest ウィンドウで **「ゲストとして接続」** をクリック
 5. コードをペーストして接続
+6. 必要ならヘッダのマーカーツールで注釈する
+7. 全画面にする場合は **「全画面」** を押し、戻るときは `ESC` を素早く2回押す
 
-詳細は [LOCAL_TEST_GUIDE.md](LOCAL_TEST_GUIDE.md) を参照。
+詳細は [RUNBOOK.md](docs/RUNBOOK.md) と [LOCAL_TEST_GUIDE.md](LOCAL_TEST_GUIDE.md) を参照。
 
 ### AI による実装
 

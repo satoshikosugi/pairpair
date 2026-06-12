@@ -87,6 +87,10 @@ export class DataChannelManager {
     this.controlHandlers.push(handler);
   }
 
+  offControl(handler: ControlMessageHandler): void {
+    this.controlHandlers = this.controlHandlers.filter((h) => h !== handler);
+  }
+
   onInput(handler: InputMessageHandler): void {
     this.inputHandlers.push(handler);
   }
@@ -103,6 +107,8 @@ export class DataChannelManager {
     this.controlChannel?.close();
     this.inputChannel?.close();
     this.inputReliableChannel?.close();
+    this.controlHandlers = [];
+    this.inputHandlers = [];
     this.sessionEndedHandlers = [];
   }
 

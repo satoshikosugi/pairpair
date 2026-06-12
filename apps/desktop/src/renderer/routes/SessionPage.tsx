@@ -1,5 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import type { KeyboardDownEvent, KeyboardUpEvent, TextInputEvent, QualityPresetName, QualityPreset, InputEvent } from "@pairpair/shared";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import type {
+  AnnotationPoint,
+  AnnotationStroke,
+  ControlMessage,
+  GuestCursorIndicator,
+  HostOverlayState,
+  InputEvent as PairPairInputEvent,
+  KeyboardDownEvent,
+  KeyboardUpEvent,
+  QualityPreset,
+  QualityPresetName,
+  TextInputEvent,
+} from "@pairpair/shared";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
@@ -8,18 +20,40 @@ import { ConnectionStatus } from "../components/ConnectionStatus";
 import { StatsOverlay } from "../components/StatsOverlay";
 import { PermissionPanel } from "../components/PermissionPanel";
 import { RemoteVideoView } from "../components/RemoteVideoView";
+import { MarkerToolbar } from "../components/MarkerToolbar";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
-import { closePeerConnection, applyQualityPreset, setAdaptiveParameters, getPeerConnection, getLocalStreamResolution } from "../webrtc/rtc-client";
+import {
+  closePeerConnection,
+  applyQualityPreset,
+  setAdaptiveParameters,
+  getPeerConnection,
+  getLocalStreamResolution,
+} from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
 import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc/stats-monitor";
 import { startMetricsCollection, startSharpnessAnalysis } from "../utils/quality-metrics";
 import { dataChannelManager } from "../webrtc/data-channel";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 
+const CURSOR_HIDE_DELAY_MS = 3000;
+const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
+const FULLSCREEN_HINT_DURATION_MS = 2000;
+
 export function SessionPage(): React.ReactElement {
   const { navigate } = useAppStore();
-  const { role, hostDeviceName, guestDeviceName, connectionState, controlState, currentQualityPreset, customQualityPreset, adaptiveModeActive, adaptiveBasePreset } = useSessionStore();
+  const {
+    role,
+    hostDeviceName,
+    guestDeviceName,
+    connectionState,
+    controlState,
+    currentQualityPreset,
+    customQualityPreset,
+    adaptiveModeActive,
+    adaptiveBasePreset,
+  } = useSessionStore();
   const { pairproProfiles } = useSettingsStore();
+
   const [stats, setStats] = useState<WebRTCStats>({});
   const [showStats, setShowStats] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(currentQualityPreset);
@@ -27,38 +61,87 @@ export function SessionPage(): React.ReactElement {
   const [adaptiveMode, setAdaptiveMode] = useState(adaptiveModeActive);
   const [adaptiveState, setAdaptiveState] = useState(adaptiveQualityController.state);
   const [adaptiveResPreset, setAdaptiveResPreset] = useState<Exclude<QualityPresetName, "Custom">>(
-    (adaptiveBasePreset !== "Custom" ? adaptiveBasePreset : "Balanced") as Exclude<QualityPresetName, "Custom">
+    (adaptiveBasePreset !== "Custom" ? adaptiveBasePreset : "Balanced") as Exclude<QualityPresetName, "Custom">,
   );
-  const adaptiveInputHandlerRef = useRef<((e: InputEvent) => void) | null>(null);
+  const [annotations, setAnnotations] = useState<AnnotationStroke[]>([]);
+  const [markerEnabled, setMarkerEnabled] = useState(false);
+  const [markerColor, setMarkerColor] = useState("#ff6b6b");
+  const [markerWidth, setMarkerWidth] = useState(4);
+  const [remoteCursor, setRemoteCursor] = useState<GuestCursorIndicator | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenHintVisible, setFullscreenHintVisible] = useState(false);
+
+  const adaptiveInputHandlerRef = useRef<((e: PairPairInputEvent) => void) | null>(null);
   const hasAutoEnabledRef = useRef(false);
   const metricsStopRef = useRef<(() => void) | null>(null);
   const sharpnessStopRef = useRef<(() => void) | null>(null);
+  const controlMessageHandlerRef = useRef<((message: ControlMessage) => void) | null>(null);
+  const hoverHideTimerRef = useRef<number | null>(null);
+  const fullscreenHintTimerRef = useRef<number | null>(null);
+  const lastEscapeAtRef = useRef(0);
+  const activeStrokeRef = useRef<string | null>(null);
+  const annotationsRef = useRef<AnnotationStroke[]>([]);
+  const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
   const isHost = role === "host";
 
   const STATE_LABEL: Record<string, string> = {
-    idle: "アイドル", mouse_moving: "マウス移動", scrolling: "スクロール", typing: "タイプ中", clicking: "クリック",
+    idle: "アイドル",
+    mouse_moving: "マウス移動",
+    scrolling: "スクロール",
+    typing: "タイプ中",
+    clicking: "クリック",
   };
+
+  const syncHostOverlay = useCallback(
+    (nextStrokes: AnnotationStroke[], nextCursor: GuestCursorIndicator | null) => {
+      if (!isHost) return;
+      const state: HostOverlayState = { strokes: nextStrokes, guestCursor: nextCursor };
+      void window.pairpair.updateHostOverlay(state).catch(console.error);
+    },
+    [isHost],
+  );
+
+  const setCursorWithTimeout = useCallback(
+    (cursor: GuestCursorIndicator | null) => {
+      if (hoverHideTimerRef.current !== null) {
+        window.clearTimeout(hoverHideTimerRef.current);
+        hoverHideTimerRef.current = null;
+      }
+
+      setRemoteCursor(cursor);
+      syncHostOverlay(annotationsRef.current, cursor);
+
+      if (cursor?.visible) {
+        hoverHideTimerRef.current = window.setTimeout(() => {
+          setRemoteCursor(null);
+          remoteCursorRef.current = null;
+          syncHostOverlay(annotationsRef.current, null);
+        }, CURSOR_HIDE_DELAY_MS);
+      }
+    },
+    [syncHostOverlay],
+  );
 
   const enableAdaptive = useCallback((resPreset?: Exclude<QualityPresetName, "Custom">) => {
     const basePresetName = resPreset ?? adaptiveResPreset;
-    // Resolution is already set at connection time — only update controller resolution reference
     useSessionStore.getState().setAdaptiveBasePreset(basePresetName);
 
-    const handler = (event: InputEvent) => adaptiveQualityController.onInputEvent(event);
+    const handler = (event: PairPairInputEvent) => adaptiveQualityController.onInputEvent(event);
     adaptiveInputHandlerRef.current = handler;
     dataChannelManager.onInput(handler);
-    // Use the ACTUAL captured stream resolution (not the preset dimensions).
-    // The screen may be portrait or a different resolution than the preset.
+
     const actual = getLocalStreamResolution();
     adaptiveQualityController.enable(
       pairproProfiles,
-      (fps, bitrateMbps) => { void setAdaptiveParameters(fps, bitrateMbps); },
-      actual?.width  ?? QUALITY_PRESETS[basePresetName].width,
+      (fps, bitrateMbps) => {
+        void setAdaptiveParameters(fps, bitrateMbps);
+      },
+      actual?.width ?? QUALITY_PRESETS[basePresetName].width,
       actual?.height ?? QUALITY_PRESETS[basePresetName].height,
     );
     useSessionStore.getState().setAdaptiveModeActive(true);
     setAdaptiveMode(true);
-  }, [pairproProfiles, adaptiveResPreset]);
+  }, [adaptiveResPreset, pairproProfiles]);
 
   const disableAdaptive = useCallback(() => {
     adaptiveQualityController.disable();
@@ -72,27 +155,161 @@ export function SessionPage(): React.ReactElement {
     void applyQualityPreset(preset).catch(console.warn);
     useSessionStore.getState().setAdaptiveModeActive(false);
     setAdaptiveMode(false);
-  }, [selectedPreset, customPreset]);
+  }, [customPreset, selectedPreset]);
+
+  const finalizeSession = useCallback(() => {
+    signalingClient.disconnect();
+    closePeerConnection();
+    void window.pairpair.hideHostOverlay().catch(console.error);
+    void window.pairpair.setGuestFullscreen(false).catch(() => undefined);
+    useSessionStore.getState().reset();
+    navigate("home");
+  }, [navigate]);
 
   const handleDisconnect = useCallback(() => {
     signalingClient.send({ type: "session.close", payload: { reason: isHost ? "host_closed" : "guest_disconnected" } });
-    signalingClient.disconnect();
-    closePeerConnection();
-    useSessionStore.getState().reset();
-    navigate("home");
-  }, [isHost, navigate]);
+    finalizeSession();
+  }, [finalizeSession, isHost]);
+
+  const handleGuestDisconnected = useCallback(() => {
+    if (hoverHideTimerRef.current !== null) {
+      window.clearTimeout(hoverHideTimerRef.current);
+      hoverHideTimerRef.current = null;
+    }
+
+    activeStrokeRef.current = null;
+    annotationsRef.current = [];
+    remoteCursorRef.current = null;
+
+    setAnnotations([]);
+    setRemoteCursor(null);
+    setMarkerEnabled(false);
+
+    syncHostOverlay([], null);
+
+    useSessionStore.getState().setControlState("viewOnly");
+    useSessionStore.getState().setConnectionState("disconnected");
+    useSessionStore.getState().setGuestDeviceName(null);
+    finalizeSession();
+  }, [finalizeSession, syncHostOverlay]);
+
+  const handleReturnControlToHost = useCallback(() => {
+    if (!isHost) return;
+    if (useSessionStore.getState().controlState !== "controlAllowed") return;
+
+    useSessionStore.getState().setControlState("controlRevoked");
+    dataChannelManager.sendControl({ type: "remoteControl.revoked" });
+  }, [isHost]);
+
+  const upsertStrokePoint = useCallback((strokeId: string, point: AnnotationPoint) => {
+    setAnnotations((prev) => {
+      const next = prev.map((stroke) => {
+        if (stroke.id !== strokeId) return stroke;
+        const lastPoint = stroke.points[stroke.points.length - 1];
+        if (lastPoint && Math.abs(lastPoint.x - point.x) < 0.001 && Math.abs(lastPoint.y - point.y) < 0.001) {
+          return stroke;
+        }
+        return { ...stroke, points: [...stroke.points, point] };
+      });
+      syncHostOverlay(next, remoteCursorRef.current);
+      return next;
+    });
+  }, [syncHostOverlay]);
+
+  const beginMarkerStroke = useCallback((point: AnnotationPoint) => {
+    const strokeId = crypto.randomUUID();
+    activeStrokeRef.current = strokeId;
+    const stroke: AnnotationStroke = {
+      id: strokeId,
+      color: markerColor,
+      width: markerWidth,
+      points: [point],
+      createdAt: Date.now(),
+    };
+
+    setAnnotations((prev) => {
+      const next = [...prev, stroke];
+      return next;
+    });
+    dataChannelManager.sendControl({
+      type: "annotation.stroke.begin",
+      stroke: {
+        id: stroke.id,
+        color: stroke.color,
+        width: stroke.width,
+        createdAt: stroke.createdAt,
+      },
+      point,
+    });
+  }, [markerColor, markerWidth]);
+
+  const appendMarkerStroke = useCallback((point: AnnotationPoint) => {
+    const strokeId = activeStrokeRef.current;
+    if (!strokeId) return;
+    upsertStrokePoint(strokeId, point);
+    dataChannelManager.sendControl({ type: "annotation.stroke.append", strokeId, point });
+  }, [upsertStrokePoint]);
+
+  const endMarkerStroke = useCallback(() => {
+    if (!activeStrokeRef.current) return;
+    dataChannelManager.sendControl({ type: "annotation.stroke.end", strokeId: activeStrokeRef.current });
+    activeStrokeRef.current = null;
+  }, []);
+
+  const handleUndoAnnotation = useCallback(() => {
+    setAnnotations((prev) => {
+      const next = prev.slice(0, -1);
+      syncHostOverlay(next, remoteCursorRef.current);
+      return next;
+    });
+    dataChannelManager.sendControl({ type: "annotation.undo" });
+  }, [syncHostOverlay]);
+
+  const handleClearAnnotations = useCallback(() => {
+    setAnnotations([]);
+    syncHostOverlay([], remoteCursorRef.current);
+    dataChannelManager.sendControl({ type: "annotation.clear" });
+  }, [syncHostOverlay]);
+
+  const handleHoverPreview = useCallback((point: AnnotationPoint | null) => {
+    if (controlState === "controlAllowed") return;
+    if (!point) {
+      const hidden: GuestCursorIndicator = {
+        x: remoteCursorRef.current?.x ?? 0,
+        y: remoteCursorRef.current?.y ?? 0,
+        visible: false,
+        timestamp: Date.now(),
+      };
+      dataChannelManager.sendControl({ type: "guest.cursor", cursor: hidden });
+      return;
+    }
+
+    const cursor: GuestCursorIndicator = {
+      x: point.x,
+      y: point.y,
+      visible: true,
+      timestamp: Date.now(),
+    };
+    dataChannelManager.sendControl({ type: "guest.cursor", cursor });
+  }, [controlState]);
+
+  const enterFullscreen = useCallback(() => {
+    void window.pairpair.setGuestFullscreen(true).catch(console.error);
+  }, []);
 
   useEffect(() => {
     startStatsMonitor(setStats);
     void window.pairpair.registerShortcuts(isHost).catch(console.error);
+    if (isHost) {
+      void window.pairpair.showHostOverlay().catch(console.error);
+    }
 
     window.pairpair.onShortcut((action) => {
       if (action === "pause") {
         useSessionStore.getState().setControlState("controlPaused");
         dataChannelManager.sendControl({ type: "remoteControl.paused" });
       } else if (action === "revoke") {
-        useSessionStore.getState().setControlState("controlRevoked");
-        dataChannelManager.sendControl({ type: "remoteControl.revoked" });
+        handleReturnControlToHost();
       } else if (action === "end") {
         handleDisconnect();
       }
@@ -101,78 +318,237 @@ export function SessionPage(): React.ReactElement {
     return () => {
       stopStatsMonitor();
       void window.pairpair.unregisterShortcuts().catch(console.error);
+      void window.pairpair.hideHostOverlay().catch(console.error);
+      void window.pairpair.setGuestFullscreen(false).catch(() => undefined);
       window.pairpair.removeShortcutListener();
-      // Cleanup adaptive mode
       adaptiveQualityController.disable();
       if (adaptiveInputHandlerRef.current) {
         dataChannelManager.offInput(adaptiveInputHandlerRef.current);
         adaptiveInputHandlerRef.current = null;
       }
+      if (hoverHideTimerRef.current !== null) {
+        window.clearTimeout(hoverHideTimerRef.current);
+      }
+      if (fullscreenHintTimerRef.current !== null) {
+        window.clearTimeout(fullscreenHintTimerRef.current);
+      }
     };
-  }, [handleDisconnect, isHost]);
+  }, [handleDisconnect, handleReturnControlToHost, isHost]);
 
-  // Re-enable adaptive on mount if it was active (HostPage cleanup disabled it)
+  useEffect(() => {
+    const handleFullscreenChanged = (nextFullscreen: boolean) => {
+      setFullscreen(nextFullscreen);
+
+      if (fullscreenHintTimerRef.current !== null) {
+        window.clearTimeout(fullscreenHintTimerRef.current);
+        fullscreenHintTimerRef.current = null;
+      }
+
+      if (nextFullscreen) {
+        setFullscreenHintVisible(true);
+        fullscreenHintTimerRef.current = window.setTimeout(() => {
+          setFullscreenHintVisible(false);
+          fullscreenHintTimerRef.current = null;
+        }, FULLSCREEN_HINT_DURATION_MS);
+      } else {
+        setFullscreenHintVisible(false);
+      }
+    };
+
+    window.pairpair.onFullscreenChanged(handleFullscreenChanged);
+    return () => {
+      window.pairpair.removeFullscreenChangedListener();
+      if (fullscreenHintTimerRef.current !== null) {
+        window.clearTimeout(fullscreenHintTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (isHost && adaptiveModeActive && !hasAutoEnabledRef.current) {
       hasAutoEnabledRef.current = true;
       enableAdaptive();
     }
-  }, [isHost, adaptiveModeActive, enableAdaptive]);
+  }, [adaptiveModeActive, enableAdaptive, isHost]);
 
-  // Host-side system-wide activity detection via powerMonitor (works even when PairPair is not focused)
   useEffect(() => {
-    if (!isHost || !adaptiveMode) return;
+    if (!isHost) return;
+    if (!adaptiveMode && controlState !== "controlAllowed") return;
+
     void window.pairpair.startActivityMonitor();
     window.pairpair.onSystemActivity(() => {
-      adaptiveQualityController.notifyActivity("mouse_moving");
+      if (controlState === "controlAllowed") {
+        handleReturnControlToHost();
+      }
+      if (adaptiveMode) {
+        adaptiveQualityController.notifyActivity("mouse_moving");
+      }
     });
+
     return () => {
       window.pairpair.removeSystemActivityListener();
       void window.pairpair.stopActivityMonitor();
     };
-  }, [isHost, adaptiveMode]);
+  }, [adaptiveMode, controlState, handleReturnControlToHost, isHost]);
 
-  // Guest-side: auto-collect WebRTC quality metrics and frame sharpness
   useEffect(() => {
-    if (isHost) return; // Only for guest
-
+    if (isHost) return;
     const pc = getPeerConnection();
-    if (!pc) return; // Wait for peer connection
+    if (!pc) return;
 
-    console.log("[QualityTest] Starting metrics collection for guest role");
-
-    // Collect WebRTC stats every 5 seconds
     metricsStopRef.current = startMetricsCollection(pc, 5000);
-
-    // Find remote video element and analyze sharpness every 10 seconds
     const videoEl = document.querySelector("video[data-remote]") as HTMLVideoElement | null;
     if (videoEl) {
       sharpnessStopRef.current = startSharpnessAnalysis(videoEl, 10000);
     }
 
     return () => {
-      if (metricsStopRef.current) {
-        metricsStopRef.current();
-        metricsStopRef.current = null;
-      }
-      if (sharpnessStopRef.current) {
-        sharpnessStopRef.current();
-        sharpnessStopRef.current = null;
-      }
+      metricsStopRef.current?.();
+      metricsStopRef.current = null;
+      sharpnessStopRef.current?.();
+      sharpnessStopRef.current = null;
     };
   }, [isHost]);
 
-  // Sync adaptive state label every 500ms when adaptive mode is on
   useEffect(() => {
     if (!adaptiveMode) return;
-    const timer = setInterval(() => setAdaptiveState(adaptiveQualityController.state), 500);
-    return () => clearInterval(timer);
+    const timer = window.setInterval(() => setAdaptiveState(adaptiveQualityController.state), 500);
+    return () => window.clearInterval(timer);
   }, [adaptiveMode]);
+
+  useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
+
+  useEffect(() => {
+    remoteCursorRef.current = remoteCursor;
+  }, [remoteCursor]);
+
+  useEffect(() => {
+    if (isHost || controlState !== "controlAllowed") return;
+    const hidden: GuestCursorIndicator = {
+      x: remoteCursorRef.current?.x ?? 0,
+      y: remoteCursorRef.current?.y ?? 0,
+      visible: false,
+      timestamp: Date.now(),
+    };
+    dataChannelManager.sendControl({ type: "guest.cursor", cursor: hidden });
+  }, [controlState, isHost]);
+
+  useEffect(() => {
+    const handler = (message: ControlMessage) => {
+      switch (message.type) {
+        case "annotation.stroke.begin": {
+          if (!isHost) return;
+          const stroke: AnnotationStroke = {
+            ...message.stroke,
+            points: [message.point],
+          };
+          setAnnotations((prev) => {
+            const next = [...prev.filter((entry) => entry.id !== stroke.id), stroke];
+            syncHostOverlay(next, remoteCursorRef.current);
+            return next;
+          });
+          break;
+        }
+        case "annotation.stroke.append": {
+          if (!isHost) return;
+          upsertStrokePoint(message.strokeId, message.point);
+          break;
+        }
+        case "annotation.undo": {
+          if (!isHost) return;
+          setAnnotations((prev) => {
+            const next = prev.slice(0, -1);
+            syncHostOverlay(next, remoteCursorRef.current);
+            return next;
+          });
+          break;
+        }
+        case "annotation.clear": {
+          if (!isHost) return;
+          setAnnotations(() => {
+            syncHostOverlay([], remoteCursorRef.current);
+            return [];
+          });
+          break;
+        }
+        case "guest.cursor": {
+          if (!isHost) return;
+          if (!message.cursor.visible) {
+            setCursorWithTimeout(null);
+          } else {
+            setCursorWithTimeout(message.cursor);
+          }
+          break;
+        }
+      }
+    };
+
+    controlMessageHandlerRef.current = handler;
+    dataChannelManager.onControl(handler);
+    return () => {
+      if (controlMessageHandlerRef.current) {
+        dataChannelManager.offControl(controlMessageHandlerRef.current);
+      }
+    };
+  }, [isHost, setCursorWithTimeout, syncHostOverlay, upsertStrokePoint]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    syncHostOverlay(annotations, remoteCursor);
+  }, [annotations, isHost, remoteCursor, syncHostOverlay]);
+
+  useEffect(() => {
+    const handleSessionClose = (message: Record<string, unknown>) => {
+      const payload = message.payload as { reason?: string } | undefined;
+      if (!isHost || payload?.reason !== "guest_disconnected") return;
+      handleGuestDisconnected();
+    };
+
+    signalingClient.on("session.close", handleSessionClose);
+    return () => {
+      signalingClient.off("session.close", handleSessionClose);
+    };
+  }, [handleGuestDisconnected, isHost]);
 
   useEffect(() => {
     if (isHost) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && markerEnabled) {
+        const now = Date.now();
+        if (now - lastEscapeAtRef.current <= FULLSCREEN_ESCAPE_INTERVAL_MS) {
+          e.preventDefault();
+          e.stopPropagation();
+          lastEscapeAtRef.current = 0;
+          setMarkerEnabled(false);
+          return;
+        }
+
+        handleClearAnnotations();
+        lastEscapeAtRef.current = now;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      if (fullscreen && e.key === "Escape") {
+        const now = Date.now();
+        if (now - lastEscapeAtRef.current <= FULLSCREEN_ESCAPE_INTERVAL_MS) {
+          e.preventDefault();
+          e.stopPropagation();
+          lastEscapeAtRef.current = 0;
+          void window.pairpair.setGuestFullscreen(false).catch(console.error);
+          return;
+        }
+
+        lastEscapeAtRef.current = now;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
       if (controlState !== "controlAllowed") return;
       e.preventDefault();
       const event: KeyboardDownEvent = {
@@ -188,6 +564,11 @@ export function SessionPage(): React.ReactElement {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && (fullscreen || markerEnabled)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (controlState !== "controlAllowed") return;
       e.preventDefault();
       const event: KeyboardUpEvent = {
@@ -204,7 +585,7 @@ export function SessionPage(): React.ReactElement {
 
     const handleInput = (e: Event) => {
       if (controlState !== "controlAllowed") return;
-      const inputEvent = e as InputEvent;
+      const inputEvent = e as globalThis.InputEvent;
       if (inputEvent.data) {
         const event: TextInputEvent = { type: "text.input", text: inputEvent.data };
         dataChannelManager.sendInput(event);
@@ -220,7 +601,7 @@ export function SessionPage(): React.ReactElement {
       document.removeEventListener("keyup", handleKeyUp, { capture: true });
       document.removeEventListener("input", handleInput, { capture: true });
     };
-  }, [controlState, isHost]);
+  }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled]);
 
   if (isHost) {
     return (
@@ -240,6 +621,9 @@ export function SessionPage(): React.ReactElement {
           <ConnectionStatus />
           <span style={{ color: "#aaa", fontSize: 13 }}>接続先: {guestDeviceName ?? "---"}</span>
           <span style={{ color: "#aaa", fontSize: 13 }}>{connectionState === "connected" ? "P2P接続済み" : "接続中..."}</span>
+          <span style={{ color: "#aaa", fontSize: 12 }}>
+            注釈: {annotations.length}本 / カーソル: {remoteCursor?.visible ? "表示中" : "非表示"}
+          </span>
           <StatsOverlay stats={stats} visible={showStats} onToggle={() => setShowStats(!showStats)} />
         </div>
 
@@ -253,20 +637,21 @@ export function SessionPage(): React.ReactElement {
             padding: 24,
           }}
         >
-          <div style={{ color: "#aaa", marginBottom: 8 }}>画面を共有中</div>
+          <div style={{ color: "#aaa", marginBottom: 8 }}>共有画面上に透明オーバーレイを表示中</div>
+          <div style={{ color: "#666", fontSize: 12, marginBottom: 24 }}>
+            ゲストのマーカーと非操作時カーソルは共有ディスプレイ上に投影されます。
+          </div>
 
-          <div style={{ width: "100%", maxWidth: 400, marginTop: 24, marginBottom: 24 }}>
+          <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
             <h4 style={{ color: "#aaa", marginBottom: 12 }}>画質設定</h4>
-
-            {/* Mode selector tabs */}
             <div style={{ display: "flex", gap: 0, marginBottom: 12, borderRadius: 6, overflow: "hidden", border: "1px solid #444" }}>
               {[
                 { key: false, label: "従来のプリセット" },
-                { key: true,  label: "適応モード（PairPro）" },
+                { key: true, label: "適応モード（PairPro）" },
               ].map(({ key, label }) => (
                 <button
                   key={String(key)}
-                  onClick={() => key ? enableAdaptive() : disableAdaptive()}
+                  onClick={() => (key ? enableAdaptive() : disableAdaptive())}
                   style={{
                     flex: 1,
                     padding: "7px 0",
@@ -274,7 +659,6 @@ export function SessionPage(): React.ReactElement {
                     color: adaptiveMode === key ? "#fff" : "#888",
                     border: "none",
                     fontSize: 13,
-                    cursor: "pointer",
                   }}
                 >
                   {label}
@@ -298,54 +682,48 @@ export function SessionPage(): React.ReactElement {
               />
             ) : (
               <div style={{ background: "#1a1a2e", border: "1px solid #2a2a4e", borderRadius: 6, padding: "12px 16px", fontSize: 12 }}>
-                {/* Resolution selector */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <span style={{ color: "#888" }}>解像度:</span>
                   <select
                     value={adaptiveResPreset}
                     onChange={(e) => {
-                      const p = e.target.value as Exclude<QualityPresetName, "Custom">;
-                      setAdaptiveResPreset(p);
-                      const basePreset = QUALITY_PRESETS[p];
+                      const preset = e.target.value as Exclude<QualityPresetName, "Custom">;
+                      setAdaptiveResPreset(preset);
+                      const basePreset = QUALITY_PRESETS[preset];
                       void applyQualityPreset(basePreset).then(() => {
                         adaptiveQualityController.setResolution(basePreset.width, basePreset.height);
                       });
-                      useSessionStore.getState().setAdaptiveBasePreset(p);
+                      useSessionStore.getState().setAdaptiveBasePreset(preset);
                     }}
                     style={{ background: "#2a2a3e", color: "#fff", border: "1px solid #444", padding: "2px 6px", borderRadius: 4, fontSize: 12 }}
                   >
-                    {(["Low", "Balanced", "Sharp", "Ultra"] as const).map((p) => (
-                      <option key={p} value={p}>{p} ({QUALITY_PRESETS[p].resolution})</option>
+                    {(["Low", "Balanced", "Sharp", "Ultra"] as const).map((preset) => (
+                      <option key={preset} value={preset}>
+                        {preset} ({QUALITY_PRESETS[preset].resolution})
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div style={{ color: "#4a9eff", marginBottom: 6 }}>
-                  \u72b6\u614b: {STATE_LABEL[adaptiveState]} \u2014 {pairproProfiles[adaptiveState].fps} fps / {calcBitrateMbps(pairproProfiles[adaptiveState].quality, QUALITY_PRESETS[adaptiveResPreset].width, QUALITY_PRESETS[adaptiveResPreset].height, pairproProfiles[adaptiveState].fps)} Mbps
+                  状態: {STATE_LABEL[adaptiveState]} - {pairproProfiles[adaptiveState].fps} fps /{" "}
+                  {calcBitrateMbps(
+                    pairproProfiles[adaptiveState].quality,
+                    QUALITY_PRESETS[adaptiveResPreset].width,
+                    QUALITY_PRESETS[adaptiveResPreset].height,
+                    pairproProfiles[adaptiveState].fps,
+                  )}{" "}
+                  Mbps
                 </div>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <tbody>
-                    {(["idle", "mouse_moving", "scrolling", "typing", "clicking"] as const).map((s) => (
-                      <tr key={s} style={{ opacity: s === adaptiveState ? 1 : 0.45 }}>
-                        <td style={{ color: "#888", paddingRight: 12 }}>{STATE_LABEL[s]}</td>
-                        <td style={{ color: "#fff", paddingRight: 12 }}>{pairproProfiles[s].fps} fps</td>
-                        <td style={{ color: "#fff", paddingRight: 12 }}>{pairproProfiles[s].quality}%</td>
-                        <td style={{ color: "#666" }}>{calcBitrateMbps(pairproProfiles[s].quality, QUALITY_PRESETS[adaptiveResPreset].width, QUALITY_PRESETS[adaptiveResPreset].height, pairproProfiles[s].fps)} Mbps</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             )}
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
-            <button
-              onClick={handleDisconnect}
-              style={{ padding: "10px 24px", background: "#ff4444", color: "#fff", border: "none", borderRadius: 8 }}
-            >
-              セッション終了
-            </button>
-          </div>
+          <button
+            onClick={handleDisconnect}
+            style={{ padding: "10px 24px", background: "#ff4444", color: "#fff", border: "none", borderRadius: 8 }}
+          >
+            セッション終了
+          </button>
         </div>
 
         <PermissionPanel role="host" />
@@ -354,41 +732,95 @@ export function SessionPage(): React.ReactElement {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div
-        style={{
-          padding: "8px 16px",
-          background: "#16213e",
-          borderBottom: "1px solid #333",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontWeight: "bold", color: "#4a9eff" }}>PairPair - ゲスト</span>
-        <ConnectionStatus />
-        <span style={{ color: "#aaa", fontSize: 13 }}>{hostDeviceName ?? "Host"}</span>
-        <StatsOverlay stats={stats} visible={showStats} onToggle={() => setShowStats(!showStats)} />
-        <button
-          onClick={handleDisconnect}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: "#000",
+        position: "relative",
+      }}
+    >
+      {!fullscreen && (
+        <div
           style={{
-            marginLeft: "auto",
-            padding: "4px 14px",
-            background: "transparent",
-            color: "#ff4444",
-            border: "1px solid #ff4444",
-            borderRadius: 6,
-            fontSize: 13,
+            padding: "8px 16px",
+            background: "#16213e",
+            borderBottom: "1px solid #333",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexShrink: 0,
+            flexWrap: "wrap",
           }}
         >
-          切断
-        </button>
-      </div>
+          <span style={{ fontWeight: "bold", color: "#4a9eff" }}>PairPair - ゲスト</span>
+          <ConnectionStatus />
+          <span style={{ color: "#aaa", fontSize: 13 }}>{hostDeviceName ?? "Host"}</span>
+          <StatsOverlay stats={stats} visible={showStats} onToggle={() => setShowStats(!showStats)} />
+          <MarkerToolbar
+            enabled={markerEnabled}
+            color={markerColor}
+            width={markerWidth}
+            onToggle={() => setMarkerEnabled((prev) => !prev)}
+            onEnable={() => setMarkerEnabled(true)}
+            onColorChange={setMarkerColor}
+            onWidthChange={setMarkerWidth}
+            onUndo={handleUndoAnnotation}
+            onClear={handleClearAnnotations}
+            canUndo={annotations.length > 0}
+            hasStrokes={annotations.length > 0}
+            onEnterFullscreen={enterFullscreen}
+          />
+          <button
+            onClick={handleDisconnect}
+            style={{
+              padding: "4px 14px",
+              background: "transparent",
+              color: "#ff4444",
+              border: "1px solid #ff4444",
+              borderRadius: 6,
+              fontSize: 13,
+            }}
+          >
+            切断
+          </button>
+        </div>
+      )}
 
-      <RemoteVideoView />
+      <RemoteVideoView
+        annotations={annotations}
+        remoteCursor={null}
+        markerEnabled={markerEnabled}
+        onMarkerStart={beginMarkerStroke}
+        onMarkerMove={appendMarkerStroke}
+        onMarkerEnd={endMarkerStroke}
+        onHoverPreview={handleHoverPreview}
+        fullscreen={fullscreen}
+      />
 
-      <PermissionPanel role="guest" />
+      {fullscreen && fullscreenHintVisible && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            padding: "14px 20px",
+            borderRadius: 12,
+            background: "rgba(0, 0, 0, 0.74)",
+            color: "#fff",
+            fontSize: 18,
+            fontWeight: 700,
+            pointerEvents: "none",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+          }}
+        >
+          ESC を素早く 2 回で全画面を終了
+        </div>
+      )}
+
+      {!fullscreen && <PermissionPanel role="guest" />}
     </div>
   );
 }

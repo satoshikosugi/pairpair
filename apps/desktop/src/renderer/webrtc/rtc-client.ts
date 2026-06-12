@@ -12,7 +12,7 @@ function getIceServers(): RTCIceServer[] {
   return [{ urls: [stunServer] }];
 }
 
-export async function createPeerConnectionAsHost(sourceId: string): Promise<RTCPeerConnection> {
+export async function createPeerConnectionAsHost(sourceId: string, qualityPreset?: import("@pairpair/shared").QualityPreset): Promise<RTCPeerConnection> {
   const pc = new RTCPeerConnection({
     iceServers: getIceServers(),
     iceTransportPolicy: "all",
@@ -44,17 +44,31 @@ export async function createPeerConnectionAsHost(sourceId: string): Promise<RTCP
   await window.pairpair.setSelectedSource(sourceId);
 
   try {
+    // Use the quality preset constraints if provided, otherwise use defaults
+    const videoConstraints = qualityPreset ? {
+      width: { ideal: qualityPreset.width },
+      height: { ideal: qualityPreset.height },
+      frameRate: { ideal: qualityPreset.fps },
+    } : {
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal: 30 },
+    };
+
     localStream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 },
-      },
+      video: videoConstraints,
     });
 
     localStream.getTracks().forEach((track) => {
       pc.addTrack(track, localStream!);
     });
+
+    // Apply quality preset to the RTC sender after track is added
+    if (qualityPreset) {
+      // Give the track a moment to be set up before applying parameters
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await applyQualityPreset(qualityPreset).catch(console.warn);
+    }
   } catch (err) {
     console.error("Failed to get display media:", err);
     throw err;
@@ -199,30 +213,43 @@ export function getPeerConnection(): RTCPeerConnection | null {
 export async function applyQualityPreset(preset: import("@pairpair/shared").QualityPreset): Promise<void> {
   const pc = getPeerConnection();
   if (!pc) return;
+
   const senders = pc.getSenders();
+  let hasVideo = false;
+
   for (const sender of senders) {
     if (sender.track?.kind === "video") {
-      const params = sender.getParameters();
-      if (!params.encodings?.length) {
-        params.encodings = [{}];
-      }
-      params.encodings[0].maxBitrate = preset.bitrateMbps * 1_000_000;
-      params.encodings[0].maxFramerate = preset.fps;
-      try {
-        await sender.setParameters(params);
-      } catch (err) {
-        console.warn("setParameters failed, trying applyConstraints:", err);
-        if (sender.track) {
-          await sender.track
-            .applyConstraints({
-              width: { ideal: preset.width },
-              height: { ideal: preset.height },
-              frameRate: { ideal: preset.fps },
-            })
-            .catch(console.warn);
+      hasVideo = true;
+      // First, try to apply constraints to the track for resolution changes
+      if (sender.track) {
+        try {
+          await sender.track.applyConstraints({
+            width: { ideal: preset.width },
+            height: { ideal: preset.height },
+            frameRate: { ideal: preset.fps },
+          });
+        } catch (err) {
+          console.warn("Failed to apply constraints to video track:", err);
         }
       }
+
+      // Then apply bitrate and FPS through RTC parameters
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings?.length) {
+          params.encodings = [{}];
+        }
+        params.encodings[0].maxBitrate = preset.bitrateMbps * 1_000_000;
+        params.encodings[0].maxFramerate = preset.fps;
+        await sender.setParameters(params);
+      } catch (err) {
+        console.warn("Failed to set RTC parameters:", err);
+      }
     }
+  }
+
+  if (!hasVideo) {
+    console.warn("No video sender found to apply quality preset");
   }
 }
 

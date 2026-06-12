@@ -4,7 +4,7 @@ import { useSessionStore } from "../store/session-store";
 import { signalingClient } from "../webrtc/signaling-client";
 import { createPeerConnectionAsGuest, handleOffer, handleIce } from "../webrtc/rtc-client";
 
-const SERVER_URL = "http://localhost:8080";
+const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
 export function GuestPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();

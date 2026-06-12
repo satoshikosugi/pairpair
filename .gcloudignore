@@ -1,0 +1,67 @@
+# Compiled files
+node_modules/
+dist/
+build/
+target/
+*.o
+*.a
+*.so
+
+# Source files
+src/
+*.ts
+*.tsx
+
+# Development files
+.DS_Store
+*.log
+.env
+.env.local
+.git
+.gitignore
+.github
+.vscode
+.idea
+.turbo
+
+# Dependencies
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+Cargo.lock
+
+# Tests
+coverage/
+*.test.ts
+*.spec.ts
+vitest.config.ts
+
+# IDE
+.editorconfig
+.prettierrc
+.eslintrc
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Documentation
+README.md
+SPEC.md
+TASK.md
+LOCAL_TEST_GUIDE.md
+
+# Scripts
+*.bat
+*.sh
+check-setup.*
+start-local-test.*
+
+# Electron specific
+apps/desktop/
+
+# Rust bindings
+packages/native-input/src/
+packages/native-input/build.rs
+packages/native-input/Cargo.toml

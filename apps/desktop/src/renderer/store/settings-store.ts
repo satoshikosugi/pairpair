@@ -22,7 +22,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   defaultPreset: "Balanced",
-  stunServer: "stun:stun.l.google.com:19302",
+  stunServer: "stun:pairpair-signaling-server-245497898064.asia-northeast1.run.app:3478",
   connectionTimeout: 30,
   showCursor: true,
   confirmOnExit: true,
@@ -41,7 +41,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       const settings = (await window.pairpair.getAllSettings()) as Record<string, unknown>;
       set({
         defaultPreset: (settings.defaultPreset as QualityPresetName) ?? "Balanced",
-        stunServer: (settings.stunServer as string) ?? "stun:stun.l.google.com:19302",
+        stunServer: (settings.stunServer as string) ?? "stun:pairpair-signaling-server-245497898064.asia-northeast1.run.app:3478",
         connectionTimeout: (settings.connectionTimeout as number) ?? 30,
         showCursor: (settings.showCursor as boolean) ?? true,
         confirmOnExit: (settings.confirmOnExit as boolean) ?? true,

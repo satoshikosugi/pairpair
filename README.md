@@ -176,6 +176,46 @@ GitHub Issues でタスクを切り、AI エージェント（GitHub Copilot）�
 
 Issue は TASK.md のフェーズ・セクション単位で作成し、完了時に TASK.md を更新します。
 
+## デプロイメント
+
+### GCP Cloud Run へのデプロイ
+
+signaling-server を Google Cloud Platform (GCP) の Cloud Run にデプロイできます。
+
+**デフォルト設定**: Project ID は `web-app-project-491513` で構成されています。
+
+#### クイックスタート
+
+VS Code の **Run Task** から以下を選択：
+
+```
+GCP Deploy: Signaling Server
+```
+
+または PowerShell で直接実行：
+
+```powershell
+./gcp-deploy.ps1
+```
+
+Linux/Mac の場合：
+
+```bash
+chmod +x gcp-deploy.sh
+./gcp-deploy.sh
+```
+
+#### 前提条件
+
+- Google Cloud SDK がインストール済み
+- Docker がインストール済み
+- GCP プロジェクトが作成済み
+- Billing が有効化済み
+
+#### 詳細ガイド
+
+デプロイ方法・設定・トラブルシューティングの詳細は [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md) を参照。
+
 ## ライセンス
 
 MIT

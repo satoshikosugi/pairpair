@@ -9,7 +9,7 @@ import { signalingClient } from "../webrtc/signaling-client";
 import { createPeerConnectionAsHost, applyQualityPreset } from "../webrtc/rtc-client";
 import { QUALITY_PRESETS } from "@pairpair/shared";
 
-const SERVER_URL = "http://localhost:8080";
+const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
 export function HostPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();

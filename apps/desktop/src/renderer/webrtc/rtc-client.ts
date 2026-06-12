@@ -44,15 +44,19 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
   await window.pairpair.setSelectedSource(sourceId);
 
   try {
-    // Use the quality preset constraints if provided, otherwise use defaults
-    const videoConstraints = qualityPreset ? {
-      width: { ideal: qualityPreset.width },
-      height: { ideal: qualityPreset.height },
-      frameRate: { ideal: qualityPreset.fps },
-    } : {
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      frameRate: { ideal: 30 },
+    // Use the LONG EDGE of the preset as the max for both dimensions.
+    // This correctly handles portrait screens: a 1080x1920 screen with
+    // Balanced (1920x1080) gets maxDim=1920, so width=1080 and height=1920
+    // are both within the limit and captured at full native resolution.
+    // Plain `max: {width: preset.width, height: preset.height}` would force
+    // portrait screens into 608x1080 (aspect-ratio-preserved downscale).
+    const maxDim = qualityPreset
+      ? Math.max(qualityPreset.width, qualityPreset.height)
+      : 1920;
+    const videoConstraints = {
+      width:     { max: maxDim },
+      height:    { max: maxDim },
+      frameRate: { ideal: qualityPreset?.fps ?? 30 },
     };
 
     localStream = await navigator.mediaDevices.getDisplayMedia({
@@ -75,13 +79,43 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
       pc.addTransceiver(track, {
         direction: "sendonly",
         streams: [localStream!],
-        sendEncodings: [{ maxBitrate: initialBitrate, maxFramerate: initialFps }],
+        sendEncodings: [{
+          maxBitrate: initialBitrate,
+          maxFramerate: initialFps,
+          priority: "high",
+          // Note: scalabilityMode (L1T1) intentionally omitted — H.264 (our preferred codec)
+          // does not support SVC scalabilityMode and it causes encoding artifacts.
+        } as RTCRtpEncodingParameters],
       });
     });
     // Non-video tracks added normally
     localStream.getAudioTracks().forEach((track) => {
       pc.addTrack(track, localStream!);
     });
+
+    // VP9 is prioritised over H.264 for screen content:
+    // - VP9 (libvpx) activates a dedicated "screen content coding" mode when
+    //   contentHint="detail" is set, producing sharp text at the same bitrate.
+    // - H.264 HW encoders (MediaFoundation) are optimised for camera motion
+    //   and lack an equivalent screen-content mode.
+    // MUST be set BEFORE createOffer so the SDP reflects the preference.
+    const videoCaps = RTCRtpSender.getCapabilities?.("video");
+    if (videoCaps) {
+      const preferred = ["video/vp9", "video/h264", "video/vp8"];
+      const sortedCodecs = [
+        ...preferred.flatMap((mime) =>
+          videoCaps.codecs.filter((c) => c.mimeType.toLowerCase() === mime)
+        ),
+        ...videoCaps.codecs.filter(
+          (c) => !preferred.includes(c.mimeType.toLowerCase())
+        ),
+      ];
+      pc.getTransceivers()
+        .filter((t) => t.sender.track?.kind === "video")
+        .forEach((t) => {
+          try { t.setCodecPreferences(sortedCodecs); } catch { /* unsupported */ }
+        });
+    }
   } catch (err) {
     console.error("Failed to get display media:", err);
     throw err;
@@ -121,12 +155,6 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-
-  // Prefer VP9 over VP8: better compression for screen content (sharper text at same bitrate)
-  // Must be done after setLocalDescription so the transceiver is active.
-  await preferCodec("video/VP9").catch(() => {
-    // VP9 not available (e.g. older hardware decoder on guest), fall back to default
-  });
 
   signalingClient.send({
     type: "rtc.offer",
@@ -229,6 +257,19 @@ export function getPeerConnection(): RTCPeerConnection | null {
   return peerConnection;
 }
 
+/**
+ * Returns the actual resolution of the captured video track.
+ * Must be called after createPeerConnectionAsHost() succeeds.
+ * Use this (not preset dimensions) for bitrate calculations — the screen
+ * may be portrait or a resolution that differs from the chosen preset.
+ */
+export function getLocalStreamResolution(): { width: number; height: number } | null {
+  if (!localStream) return null;
+  const settings = localStream.getVideoTracks()[0]?.getSettings();
+  if (!settings?.width || !settings?.height) return null;
+  return { width: settings.width, height: settings.height };
+}
+
 export async function applyQualityPreset(preset: import("@pairpair/shared").QualityPreset): Promise<void> {
   const pc = getPeerConnection();
   if (!pc) return;
@@ -239,12 +280,14 @@ export async function applyQualityPreset(preset: import("@pairpair/shared").Qual
   for (const sender of senders) {
     if (sender.track?.kind === "video") {
       hasVideo = true;
-      // First, try to apply constraints to the track for resolution changes
+      // Use the long edge of the preset as max for both axes.
+      // This keeps portrait captures at their native resolution.
       if (sender.track) {
         try {
+          const maxDim = Math.max(preset.width, preset.height);
           await sender.track.applyConstraints({
-            width: { ideal: preset.width },
-            height: { ideal: preset.height },
+            width:     { max: maxDim },
+            height:    { max: maxDim },
             frameRate: { ideal: preset.fps },
           });
         } catch (err) {
@@ -260,6 +303,7 @@ export async function applyQualityPreset(preset: import("@pairpair/shared").Qual
         }
         params.encodings[0].maxBitrate = preset.bitrateMbps * 1_000_000;
         params.encodings[0].maxFramerate = preset.fps;
+        params.degradationPreference = "maintain-resolution";
         await sender.setParameters(params);
       } catch (err) {
         console.warn("Failed to set RTC parameters:", err);
@@ -285,6 +329,9 @@ export async function setAdaptiveParameters(fps: number, bitrateMbps: number): P
         }
         params.encodings[0].maxBitrate = bitrateMbps * 1_000_000;
         params.encodings[0].maxFramerate = fps;
+        // maintain-resolution: under bandwidth pressure, reduce FPS instead of resolution
+        // This is critical for text/code legibility in screen sharing
+        params.degradationPreference = "maintain-resolution";
         await sender.setParameters(params);
       } catch (err) {
         console.warn("Failed to set adaptive parameters:", err);

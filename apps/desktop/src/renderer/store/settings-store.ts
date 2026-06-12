@@ -73,13 +73,20 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         pairproProfiles: (() => {
           const raw = settings.pairproProfiles as Record<string, Record<string, unknown>> | undefined;
           if (raw && typeof raw === "object") {
-            const sample = Object.values(raw)[0];
-            if (sample && "quality" in sample) {
-              // New format
+            const entries = Object.values(raw);
+            const isValid = entries.length >= 5 && entries.every((s) => {
+              const q = s["quality"];
+              const f = s["fps"];
+              // Validate ranges: quality 1–100, fps 1–60
+              return typeof q === "number" && q >= 1 && q <= 100
+                  && typeof f === "number" && f >= 1 && f <= 60;
+            });
+            if (isValid) {
               return raw as unknown as Record<PairProActivityState, PairProProfile>;
             }
           }
-          // Old format (bitrateMbps) or missing — reset to defaults
+          // Missing, stale format, or out-of-range values — reset to defaults
+          void window.pairpair.setSettings("pairproProfiles", { ...PAIRPRO_DEFAULT_PROFILES });
           return { ...PAIRPRO_DEFAULT_PROFILES };
         })(),
         loaded: true,

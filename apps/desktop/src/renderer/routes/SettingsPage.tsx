@@ -110,7 +110,7 @@ export function SettingsPage(): React.ReactElement {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr>
-                {["状態", "FPS", "Mbps", "タイムアウト (ms)"].map((h) => (
+                {["状態", "FPS", "品質 %", "目安 Mbps", "タイムアウト (ms)"].map((h) => (
                   <th key={h} style={{ padding: "4px 8px", color: "#888", fontWeight: 400, textAlign: "left", borderBottom: "1px solid #2a2a3e" }}>{h}</th>
                 ))}
               </tr>

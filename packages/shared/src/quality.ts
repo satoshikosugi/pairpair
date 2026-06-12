@@ -16,7 +16,7 @@ export const QUALITY_PRESETS: Record<Exclude<QualityPresetName, "Custom">, Quali
     width: 1280,
     height: 720,
     fps: 15,
-    bitrateMbps: 4,
+    bitrateMbps: 2,
   },
   Balanced: {
     name: "Balanced",
@@ -24,7 +24,7 @@ export const QUALITY_PRESETS: Record<Exclude<QualityPresetName, "Custom">, Quali
     width: 1920,
     height: 1080,
     fps: 30,
-    bitrateMbps: 15,
+    bitrateMbps: 6,
   },
   Sharp: {
     name: "Sharp",
@@ -32,7 +32,7 @@ export const QUALITY_PRESETS: Record<Exclude<QualityPresetName, "Custom">, Quali
     width: 2560,
     height: 1440,
     fps: 30,
-    bitrateMbps: 25,
+    bitrateMbps: 12,
   },
   Ultra: {
     name: "Ultra",
@@ -40,7 +40,7 @@ export const QUALITY_PRESETS: Record<Exclude<QualityPresetName, "Custom">, Quali
     width: 3840,
     height: 2160,
     fps: 30,
-    bitrateMbps: 50,
+    bitrateMbps: 25,
   },
 };
 
@@ -64,7 +64,10 @@ export interface PairProProfile {
 
 /**
  * Calculate target bitrate (Mbps) from quality%, resolution, and fps.
- * Targets ~20 Mbps at quality=100, 1080p, 30fps — suitable for crisp screen content.
+ * Calibrated for internet connections (5-15 Mbps range):
+ *   quality=60, 1080p, fps=15  → ~6.6 Mbps
+ *   quality=75, 1080p, fps=5   → ~3.75 Mbps (typing: sharp text, low fps)
+ *   quality=30, 1080p, fps=1   → ~0.78 Mbps (idle)
  */
 export function calcBitrateMbps(
   quality: number,
@@ -79,9 +82,10 @@ export function calcBitrateMbps(
 }
 
 export const PAIRPRO_DEFAULT_PROFILES: Record<PairProActivityState, PairProProfile> = {
-  idle:         { fps: 1,  quality: 30, idleTimeoutMs: 2000 },
-  mouse_moving: { fps: 15, quality: 60, idleTimeoutMs: 500  },
-  scrolling:    { fps: 20, quality: 70, idleTimeoutMs: 300  },
-  typing:       { fps: 5,  quality: 50, idleTimeoutMs: 1000 },
-  clicking:     { fps: 30, quality: 80, idleTimeoutMs: 300  },
+  //                                               1080p bitrate estimate
+  idle:         { fps: 1,  quality: 100, idleTimeoutMs: 2000 }, // ~2.6 Mbps
+  mouse_moving: { fps: 15, quality: 100, idleTimeoutMs: 500  }, // ~11 Mbps
+  scrolling:    { fps: 15, quality: 100, idleTimeoutMs: 300  }, // ~11 Mbps
+  typing:       { fps: 5,  quality: 100, idleTimeoutMs: 1000 }, // ~5 Mbps
+  clicking:     { fps: 15, quality: 100, idleTimeoutMs: 300  }, // ~11 Mbps
 };

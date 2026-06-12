@@ -23,6 +23,11 @@ let lastStatsTime = 0;
 
 export function startStatsMonitor(callback: (stats: WebRTCStats) => void): void {
   onStatsUpdate = callback;
+  // Reset byte counters so the first measurement after a new connection
+  // doesn't show near-zero bitrate (stale values from previous session).
+  lastBytesReceived = 0;
+  lastBytesSent = 0;
+  lastStatsTime = 0;
   stopStatsMonitor();
   statsInterval = setInterval(() => {
     void collectStats();

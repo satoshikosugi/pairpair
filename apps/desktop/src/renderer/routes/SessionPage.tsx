@@ -9,7 +9,7 @@ import { StatsOverlay } from "../components/StatsOverlay";
 import { PermissionPanel } from "../components/PermissionPanel";
 import { RemoteVideoView } from "../components/RemoteVideoView";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
-import { closePeerConnection, applyQualityPreset, setAdaptiveParameters, getPeerConnection } from "../webrtc/rtc-client";
+import { closePeerConnection, applyQualityPreset, setAdaptiveParameters, getPeerConnection, getLocalStreamResolution } from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
 import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc/stats-monitor";
 import { startMetricsCollection, startSharpnessAnalysis } from "../utils/quality-metrics";
@@ -47,11 +47,14 @@ export function SessionPage(): React.ReactElement {
     const handler = (event: InputEvent) => adaptiveQualityController.onInputEvent(event);
     adaptiveInputHandlerRef.current = handler;
     dataChannelManager.onInput(handler);
+    // Use the ACTUAL captured stream resolution (not the preset dimensions).
+    // The screen may be portrait or a different resolution than the preset.
+    const actual = getLocalStreamResolution();
     adaptiveQualityController.enable(
       pairproProfiles,
       (fps, bitrateMbps) => { void setAdaptiveParameters(fps, bitrateMbps); },
-      QUALITY_PRESETS[basePresetName].width,
-      QUALITY_PRESETS[basePresetName].height,
+      actual?.width  ?? QUALITY_PRESETS[basePresetName].width,
+      actual?.height ?? QUALITY_PRESETS[basePresetName].height,
     );
     useSessionStore.getState().setAdaptiveModeActive(true);
     setAdaptiveMode(true);

@@ -6,7 +6,7 @@ import { useSettingsStore } from "../store/settings-store";
 import { ScreenSourcePicker } from "../components/ScreenSourcePicker";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
 import { signalingClient } from "../webrtc/signaling-client";
-import { createPeerConnectionAsHost, applyQualityPreset, setAdaptiveParameters } from "../webrtc/rtc-client";
+import { createPeerConnectionAsHost, applyQualityPreset, setAdaptiveParameters, getLocalStreamResolution } from "../webrtc/rtc-client";
 import { dataChannelManager } from "../webrtc/data-channel";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
@@ -62,11 +62,14 @@ export function HostPage(): React.ReactElement {
     const handler = (event: InputEvent) => adaptiveQualityController.onInputEvent(event);
     adaptiveInputHandlerRef.current = handler;
     dataChannelManager.onInput(handler);
+    // Use the ACTUAL captured stream resolution (not the preset dimensions).
+    // The screen may be portrait or a different resolution than the preset.
+    const actual = getLocalStreamResolution();
     adaptiveQualityController.enable(
       pairproProfiles,
       (fps, bitrateMbps) => { void setAdaptiveParameters(fps, bitrateMbps); },
-      QUALITY_PRESETS[adaptiveBasePreset].width,
-      QUALITY_PRESETS[adaptiveBasePreset].height,
+      actual?.width  ?? QUALITY_PRESETS[adaptiveBasePreset].width,
+      actual?.height ?? QUALITY_PRESETS[adaptiveBasePreset].height,
     );
     setAdaptiveMode(true);
   }, [pairproProfiles, adaptiveBasePreset]);
@@ -144,9 +147,13 @@ export function HostPage(): React.ReactElement {
 
         // Store adaptive mode active state in session store so SessionPage can read it
         useSessionStore.getState().setAdaptiveModeActive(adaptiveMode);
+        // Store the base preset so SessionPage initializes the dropdown correctly
+        if (adaptiveMode) {
+          useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
+        }
 
         // Pass base preset to createPeerConnectionAsHost so resolution is set at connection time
-        const adaptivePreset = QUALITY_PRESETS[adaptiveBasePreset];
+        const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveBasePreset] : undefined;
         void createPeerConnectionAsHost(selectedSourceId, adaptiveMode ? adaptivePreset : currentPreset)
           .then(() => {
             if (adaptiveMode) {

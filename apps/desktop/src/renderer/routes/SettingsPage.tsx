@@ -41,7 +41,7 @@ export function SettingsPage(): React.ReactElement {
 
       <section style={{ marginBottom: 24 }}>
         <h3 style={sectionHeader}>接続</h3>
-        <SettingItem label="STUNサーバー">
+        <SettingItem label="シグナリングサーバー">
           <input
             type="text"
             value={settings.stunServer}

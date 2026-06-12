@@ -32,6 +32,16 @@ contextBridge.exposeInMainWorld("pairpair", {
   removeShortcutListener: () => {
     ipcRenderer.removeAllListeners("session:shortcut");
   },
+
+  // System-wide activity monitor (for host adaptive quality)
+  startActivityMonitor: () => ipcRenderer.invoke("activity:start"),
+  stopActivityMonitor: () => ipcRenderer.invoke("activity:stop"),
+  onSystemActivity: (callback: () => void) => {
+    ipcRenderer.on("activity:detected", callback);
+  },
+  removeSystemActivityListener: () => {
+    ipcRenderer.removeAllListeners("activity:detected");
+  },
 });
 
 declare global {
@@ -50,6 +60,10 @@ declare global {
       unregisterShortcuts: () => Promise<void>;
       onShortcut: (callback: (action: string) => void) => void;
       removeShortcutListener: () => void;
+      startActivityMonitor: () => Promise<void>;
+      stopActivityMonitor: () => Promise<void>;
+      onSystemActivity: (callback: () => void) => void;
+      removeSystemActivityListener: () => void;
     };
   }
 

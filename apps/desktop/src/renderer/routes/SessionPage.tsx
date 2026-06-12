@@ -1,26 +1,72 @@
-import React, { useState, useEffect, useCallback } from "react";
-import type { KeyboardDownEvent, KeyboardUpEvent, TextInputEvent, QualityPresetName, QualityPreset } from "@pairpair/shared";
-import { QUALITY_PRESETS } from "@pairpair/shared";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import type { KeyboardDownEvent, KeyboardUpEvent, TextInputEvent, QualityPresetName, QualityPreset, InputEvent } from "@pairpair/shared";
+import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
+import { useSettingsStore } from "../store/settings-store";
 import { ConnectionStatus } from "../components/ConnectionStatus";
 import { StatsOverlay } from "../components/StatsOverlay";
 import { PermissionPanel } from "../components/PermissionPanel";
 import { RemoteVideoView } from "../components/RemoteVideoView";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
-import { closePeerConnection, applyQualityPreset } from "../webrtc/rtc-client";
+import { closePeerConnection, applyQualityPreset, setAdaptiveParameters } from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
 import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc/stats-monitor";
 import { dataChannelManager } from "../webrtc/data-channel";
+import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 
 export function SessionPage(): React.ReactElement {
   const { navigate } = useAppStore();
-  const { role, hostDeviceName, guestDeviceName, connectionState, controlState, currentQualityPreset, customQualityPreset } = useSessionStore();
+  const { role, hostDeviceName, guestDeviceName, connectionState, controlState, currentQualityPreset, customQualityPreset, adaptiveModeActive, adaptiveBasePreset } = useSessionStore();
+  const { pairproProfiles } = useSettingsStore();
   const [stats, setStats] = useState<WebRTCStats>({});
   const [showStats, setShowStats] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(currentQualityPreset);
   const [customPreset, setCustomPreset] = useState<Partial<QualityPreset>>(customQualityPreset);
+  const [adaptiveMode, setAdaptiveMode] = useState(adaptiveModeActive);
+  const [adaptiveState, setAdaptiveState] = useState(adaptiveQualityController.state);
+  const [adaptiveResPreset, setAdaptiveResPreset] = useState<Exclude<QualityPresetName, "Custom">>(
+    (adaptiveBasePreset !== "Custom" ? adaptiveBasePreset : "Balanced") as Exclude<QualityPresetName, "Custom">
+  );
+  const adaptiveInputHandlerRef = useRef<((e: InputEvent) => void) | null>(null);
+  const hasAutoEnabledRef = useRef(false);
   const isHost = role === "host";
+
+  const STATE_LABEL: Record<string, string> = {
+    idle: "アイドル", mouse_moving: "マウス移動", scrolling: "スクロール", typing: "タイプ中", clicking: "クリック",
+  };
+
+  const enableAdaptive = useCallback((resPreset?: Exclude<QualityPresetName, "Custom">) => {
+    const basePresetName = resPreset ?? adaptiveResPreset;
+    // Resolution is already set at connection time — only update controller resolution reference
+    useSessionStore.getState().setAdaptiveBasePreset(basePresetName);
+
+    const handler = (event: InputEvent) => adaptiveQualityController.onInputEvent(event);
+    adaptiveInputHandlerRef.current = handler;
+    dataChannelManager.onInput(handler);
+    adaptiveQualityController.enable(
+      pairproProfiles,
+      (fps, bitrateMbps) => { void setAdaptiveParameters(fps, bitrateMbps); },
+      QUALITY_PRESETS[basePresetName].width,
+      QUALITY_PRESETS[basePresetName].height,
+    );
+    useSessionStore.getState().setAdaptiveModeActive(true);
+    setAdaptiveMode(true);
+  }, [pairproProfiles, adaptiveResPreset]);
+
+  const disableAdaptive = useCallback(() => {
+    adaptiveQualityController.disable();
+    if (adaptiveInputHandlerRef.current) {
+      dataChannelManager.offInput(adaptiveInputHandlerRef.current);
+      adaptiveInputHandlerRef.current = null;
+    }
+    const preset = selectedPreset === "Custom"
+      ? ({ ...customPreset, name: "Custom" } as QualityPreset)
+      : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
+    void applyQualityPreset(preset).catch(console.warn);
+    useSessionStore.getState().setAdaptiveModeActive(false);
+    setAdaptiveMode(false);
+  }, [selectedPreset, customPreset]);
 
   const handleDisconnect = useCallback(() => {
     signalingClient.send({ type: "session.close", payload: { reason: isHost ? "host_closed" : "guest_disconnected" } });
@@ -50,8 +96,42 @@ export function SessionPage(): React.ReactElement {
       stopStatsMonitor();
       void window.pairpair.unregisterShortcuts().catch(console.error);
       window.pairpair.removeShortcutListener();
+      // Cleanup adaptive mode
+      adaptiveQualityController.disable();
+      if (adaptiveInputHandlerRef.current) {
+        dataChannelManager.offInput(adaptiveInputHandlerRef.current);
+        adaptiveInputHandlerRef.current = null;
+      }
     };
   }, [handleDisconnect, isHost]);
+
+  // Re-enable adaptive on mount if it was active (HostPage cleanup disabled it)
+  useEffect(() => {
+    if (isHost && adaptiveModeActive && !hasAutoEnabledRef.current) {
+      hasAutoEnabledRef.current = true;
+      enableAdaptive();
+    }
+  }, [isHost, adaptiveModeActive, enableAdaptive]);
+
+  // Host-side system-wide activity detection via powerMonitor (works even when PairPair is not focused)
+  useEffect(() => {
+    if (!isHost || !adaptiveMode) return;
+    void window.pairpair.startActivityMonitor();
+    window.pairpair.onSystemActivity(() => {
+      adaptiveQualityController.notifyActivity("mouse_moving");
+    });
+    return () => {
+      window.pairpair.removeSystemActivityListener();
+      void window.pairpair.stopActivityMonitor();
+    };
+  }, [isHost, adaptiveMode]);
+
+  // Sync adaptive state label every 500ms when adaptive mode is on
+  useEffect(() => {
+    if (!adaptiveMode) return;
+    const timer = setInterval(() => setAdaptiveState(adaptiveQualityController.state), 500);
+    return () => clearInterval(timer);
+  }, [adaptiveMode]);
 
   useEffect(() => {
     if (isHost) return;
@@ -141,20 +221,85 @@ export function SessionPage(): React.ReactElement {
 
           <div style={{ width: "100%", maxWidth: 400, marginTop: 24, marginBottom: 24 }}>
             <h4 style={{ color: "#aaa", marginBottom: 12 }}>画質設定</h4>
-            <QualityPresetSelector
-              selected={selectedPreset}
-              customPreset={customPreset}
-              onChange={(preset, custom) => {
-                setSelectedPreset(preset);
-                if (custom) setCustomPreset(custom);
-                useSessionStore.getState().setCurrentQualityPreset(preset, custom);
-                
-                const qualityPreset = preset === "Custom"
-                  ? ({ ...custom, name: preset } as QualityPreset)
-                  : QUALITY_PRESETS[preset as Exclude<QualityPresetName, "Custom">];
-                void applyQualityPreset(qualityPreset).catch(console.error);
-              }}
-            />
+
+            {/* Mode selector tabs */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 12, borderRadius: 6, overflow: "hidden", border: "1px solid #444" }}>
+              {[
+                { key: false, label: "従来のプリセット" },
+                { key: true,  label: "適応モード（PairPro）" },
+              ].map(({ key, label }) => (
+                <button
+                  key={String(key)}
+                  onClick={() => key ? enableAdaptive() : disableAdaptive()}
+                  style={{
+                    flex: 1,
+                    padding: "7px 0",
+                    background: adaptiveMode === key ? "#4a9eff" : "#1a1a2e",
+                    color: adaptiveMode === key ? "#fff" : "#888",
+                    border: "none",
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {!adaptiveMode ? (
+              <QualityPresetSelector
+                selected={selectedPreset}
+                customPreset={customPreset}
+                onChange={(preset, custom) => {
+                  setSelectedPreset(preset);
+                  if (custom) setCustomPreset(custom);
+                  useSessionStore.getState().setCurrentQualityPreset(preset, custom);
+                  const qualityPreset = preset === "Custom"
+                    ? ({ ...custom, name: preset } as QualityPreset)
+                    : QUALITY_PRESETS[preset as Exclude<QualityPresetName, "Custom">];
+                  void applyQualityPreset(qualityPreset).catch(console.error);
+                }}
+              />
+            ) : (
+              <div style={{ background: "#1a1a2e", border: "1px solid #2a2a4e", borderRadius: 6, padding: "12px 16px", fontSize: 12 }}>
+                {/* Resolution selector */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ color: "#888" }}>解像度:</span>
+                  <select
+                    value={adaptiveResPreset}
+                    onChange={(e) => {
+                      const p = e.target.value as Exclude<QualityPresetName, "Custom">;
+                      setAdaptiveResPreset(p);
+                      const basePreset = QUALITY_PRESETS[p];
+                      void applyQualityPreset(basePreset).then(() => {
+                        adaptiveQualityController.setResolution(basePreset.width, basePreset.height);
+                      });
+                      useSessionStore.getState().setAdaptiveBasePreset(p);
+                    }}
+                    style={{ background: "#2a2a3e", color: "#fff", border: "1px solid #444", padding: "2px 6px", borderRadius: 4, fontSize: 12 }}
+                  >
+                    {(["Low", "Balanced", "Sharp", "Ultra"] as const).map((p) => (
+                      <option key={p} value={p}>{p} ({QUALITY_PRESETS[p].resolution})</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ color: "#4a9eff", marginBottom: 6 }}>
+                  \u72b6\u614b: {STATE_LABEL[adaptiveState]} \u2014 {pairproProfiles[adaptiveState].fps} fps / {calcBitrateMbps(pairproProfiles[adaptiveState].quality, QUALITY_PRESETS[adaptiveResPreset].width, QUALITY_PRESETS[adaptiveResPreset].height, pairproProfiles[adaptiveState].fps)} Mbps
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
+                    {(["idle", "mouse_moving", "scrolling", "typing", "clicking"] as const).map((s) => (
+                      <tr key={s} style={{ opacity: s === adaptiveState ? 1 : 0.45 }}>
+                        <td style={{ color: "#888", paddingRight: 12 }}>{STATE_LABEL[s]}</td>
+                        <td style={{ color: "#fff", paddingRight: 12 }}>{pairproProfiles[s].fps} fps</td>
+                        <td style={{ color: "#fff", paddingRight: 12 }}>{pairproProfiles[s].quality}%</td>
+                        <td style={{ color: "#666" }}>{calcBitrateMbps(pairproProfiles[s].quality, QUALITY_PRESETS[adaptiveResPreset].width, QUALITY_PRESETS[adaptiveResPreset].height, pairproProfiles[s].fps)} Mbps</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 12, marginTop: 16 }}>

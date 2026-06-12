@@ -59,16 +59,29 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
       video: videoConstraints,
     });
 
-    localStream.getTracks().forEach((track) => {
-      pc.addTrack(track, localStream!);
+    // Set detail hint: tells Chrome's encoder to optimize for sharpness (text/UI)
+    // rather than motion smoothness. This is the most impactful fix for blurry screen sharing.
+    localStream.getVideoTracks().forEach((track) => {
+      (track as MediaStreamTrack & { contentHint: string }).contentHint = "detail";
     });
 
-    // Apply quality preset to the RTC sender after track is added
-    if (qualityPreset) {
-      // Give the track a moment to be set up before applying parameters
-      await new Promise(resolve => setTimeout(resolve, 100));
-      await applyQualityPreset(qualityPreset).catch(console.warn);
-    }
+    // Use addTransceiver (not addTrack) so that encodings are always
+    // populated in getParameters(), making setParameters() reliable.
+    const initialBitrate = qualityPreset
+      ? qualityPreset.bitrateMbps * 1_000_000
+      : 5_000_000;
+    const initialFps = qualityPreset ? qualityPreset.fps : 30;
+    localStream.getVideoTracks().forEach((track) => {
+      pc.addTransceiver(track, {
+        direction: "sendonly",
+        streams: [localStream!],
+        sendEncodings: [{ maxBitrate: initialBitrate, maxFramerate: initialFps }],
+      });
+    });
+    // Non-video tracks added normally
+    localStream.getAudioTracks().forEach((track) => {
+      pc.addTrack(track, localStream!);
+    });
   } catch (err) {
     console.error("Failed to get display media:", err);
     throw err;
@@ -108,6 +121,12 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
+
+  // Prefer VP9 over VP8: better compression for screen content (sharper text at same bitrate)
+  // Must be done after setLocalDescription so the transceiver is active.
+  await preferCodec("video/VP9").catch(() => {
+    // VP9 not available (e.g. older hardware decoder on guest), fall back to default
+  });
 
   signalingClient.send({
     type: "rtc.offer",
@@ -250,6 +269,27 @@ export async function applyQualityPreset(preset: import("@pairpair/shared").Qual
 
   if (!hasVideo) {
     console.warn("No video sender found to apply quality preset");
+  }
+}
+
+export async function setAdaptiveParameters(fps: number, bitrateMbps: number): Promise<void> {
+  const pc = getPeerConnection();
+  if (!pc) return;
+  for (const sender of pc.getSenders()) {
+    if (sender.track?.kind === "video") {
+      // Throttle via encoder parameters only (no applyConstraints — avoids stream disruption)
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings?.length) {
+          params.encodings = [{}];
+        }
+        params.encodings[0].maxBitrate = bitrateMbps * 1_000_000;
+        params.encodings[0].maxFramerate = fps;
+        await sender.setParameters(params);
+      } catch (err) {
+        console.warn("Failed to set adaptive parameters:", err);
+      }
+    }
   }
 }
 

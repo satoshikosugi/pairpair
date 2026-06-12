@@ -1,5 +1,6 @@
 import React from "react";
 import type { WebRTCStats } from "../webrtc/stats-monitor";
+import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 
 interface StatsOverlayProps {
   stats: WebRTCStats;
@@ -54,6 +55,9 @@ export function StatsOverlay({ stats, visible, onToggle }: StatsOverlayProps): R
           {stats.framesDropped !== undefined && <div>Frames Dropped: {stats.framesDropped}</div>}
           {stats.encoderImplementation && <div>Encoder: {stats.encoderImplementation}</div>}
           {stats.iceState && <div>ICE: {stats.iceState}</div>}
+          {adaptiveQualityController.enabled && (
+            <div style={{ color: "#4a9eff" }}>Adaptive: {adaptiveQualityController.state}</div>
+          )}
           {(stats.localCandidateType || stats.remoteCandidateType) && (
             <div>
               Candidates: {stats.localCandidateType}/{stats.remoteCandidateType}

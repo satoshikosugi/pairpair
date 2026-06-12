@@ -21,6 +21,8 @@ interface SessionState {
   expiresAt: string | null;
   currentQualityPreset: QualityPresetName;
   customQualityPreset: Partial<QualityPreset>;
+  adaptiveModeActive: boolean;
+  adaptiveBasePreset: QualityPresetName;
 
   setSessionId: (id: string | null) => void;
   setCode: (code: string | null) => void;
@@ -34,6 +36,8 @@ interface SessionState {
   setSelectedSourceId: (id: string | null) => void;
   setExpiresAt: (at: string | null) => void;
   setCurrentQualityPreset: (preset: QualityPresetName, custom?: Partial<QualityPreset>) => void;
+  setAdaptiveModeActive: (active: boolean) => void;
+  setAdaptiveBasePreset: (preset: QualityPresetName) => void;
   onSessionEnded: (handler: OnSessionEndedHandler) => void;
   emitSessionEnded: () => void;
   reset: () => void;
@@ -53,6 +57,8 @@ const initialState = {
   expiresAt: null,
   currentQualityPreset: "Balanced" as QualityPresetName,
   customQualityPreset: {} as Partial<QualityPreset>,
+  adaptiveModeActive: false,
+  adaptiveBasePreset: "Balanced" as QualityPresetName,
 };
 
 let sessionEndedHandlers: OnSessionEndedHandler[] = [];
@@ -74,6 +80,8 @@ export const useSessionStore = create<SessionState>((set) => ({
     currentQualityPreset: preset,
     customQualityPreset: custom ?? {},
   }),
+  setAdaptiveModeActive: (active) => set({ adaptiveModeActive: active }),
+  setAdaptiveBasePreset: (preset) => set({ adaptiveBasePreset: preset }),
   onSessionEnded: (handler) => {
     sessionEndedHandlers.push(handler);
   },

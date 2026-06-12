@@ -1,5 +1,6 @@
 import React from "react";
-import type { QualityPresetName } from "@pairpair/shared";
+import type { QualityPresetName, PairProActivityState } from "@pairpair/shared";
+import { calcBitrateMbps } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
 import { useSettingsStore } from "../store/settings-store";
 
@@ -92,6 +93,79 @@ export function SettingsPage(): React.ReactElement {
             }}
           />
         </SettingItem>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h3 style={sectionHeader}>適応品質モード（PairPro）</h3>
+        <SettingItem label="デフォルトで有効にする">
+          <input
+            type="checkbox"
+            checked={settings.adaptiveModeEnabled}
+            onChange={(e) => {
+              void handleChange("adaptiveModeEnabled", e.target.checked);
+            }}
+          />
+        </SettingItem>
+        <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {["状態", "FPS", "Mbps", "タイムアウト (ms)"].map((h) => (
+                  <th key={h} style={{ padding: "4px 8px", color: "#888", fontWeight: 400, textAlign: "left", borderBottom: "1px solid #2a2a3e" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {([
+                ["idle",         "アイドル"],
+                ["mouse_moving", "マウス移動"],
+                ["scrolling",    "スクロール"],
+                ["typing",       "タイプ中"],
+                ["clicking",     "クリック"],
+              ] as [PairProActivityState, string][]).map(([key, label]) => {
+                const p = settings.pairproProfiles[key];
+                return (
+                  <tr key={key}>
+                    <td style={{ padding: "4px 8px", color: "#ccc" }}>{label}</td>
+                    <td style={{ padding: "4px 8px" }}>
+                      <input
+                        type="number" min={1} max={60} value={p.fps}
+                        onChange={(e) => settings.setPairproProfile(key, { ...p, fps: Number(e.target.value) })}
+                        style={{ ...inputStyle, width: 52 }}
+                      />
+                    </td>
+                    <td style={{ padding: "4px 8px" }}>
+                      <input
+                        type="number" min={1} max={100} value={p.quality}
+                        onChange={(e) => settings.setPairproProfile(key, { ...p, quality: Number(e.target.value) })}
+                        style={{ ...inputStyle, width: 52 }}
+                      />
+                    </td>
+                    <td style={{ padding: "4px 8px", color: "#666", fontSize: 12 }}>
+                      {calcBitrateMbps(p.quality, 1920, 1080, p.fps)}
+                    </td>
+                    <td style={{ padding: "4px 8px" }}>
+                      <input
+                        type="number" min={100} max={10000} step={100} value={p.idleTimeoutMs}
+                        onChange={(e) => settings.setPairproProfile(key, { ...p, idleTimeoutMs: Number(e.target.value) })}
+                        style={{ ...inputStyle, width: 80 }}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <button
+          onClick={() => settings.resetPairproProfiles()}
+          style={{ marginTop: 8, padding: "4px 12px", background: "#2a2a3e", color: "#aaa", border: "1px solid #444", borderRadius: 4, fontSize: 12, cursor: "pointer" }}
+        >
+          デフォルトに戻す
+        </button>
+        <div style={{ fontSize: 11, color: "#555", marginTop: 6 }}>
+          ※ 変更はセッション再開後に反映されます
+        </div>
       </section>
     </div>
   );

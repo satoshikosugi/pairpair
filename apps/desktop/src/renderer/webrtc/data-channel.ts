@@ -91,6 +91,10 @@ export class DataChannelManager {
     this.inputHandlers.push(handler);
   }
 
+  offInput(handler: InputMessageHandler): void {
+    this.inputHandlers = this.inputHandlers.filter((h) => h !== handler);
+  }
+
   onSessionEnded(handler: SessionEndedHandler): void {
     this.sessionEndedHandlers.push(handler);
   }

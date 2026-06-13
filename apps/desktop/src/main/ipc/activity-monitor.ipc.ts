@@ -6,7 +6,7 @@ const POLL_INTERVAL_MS = 200;
 
 // getSystemIdleTime() returns integer seconds; if below this threshold the user is active
 const ACTIVE_THRESHOLD_SECS = 1;
-const REMOTE_INPUT_SUPPRESSION_MS = 800;
+const REMOTE_INPUT_SUPPRESSION_MS = 1500;
 
 let monitorInterval: ReturnType<typeof setInterval> | null = null;
 

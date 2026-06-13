@@ -1,7 +1,6 @@
 #[cfg(target_os = "windows")]
 use windows::{
   Win32::UI::Input::KeyboardAndMouse::*,
-  Win32::Foundation::POINT,
   Win32::UI::WindowsAndMessaging::SetCursorPos,
 };
 

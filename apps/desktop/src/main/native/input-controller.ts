@@ -3,7 +3,7 @@ import path from "node:path";
 import { screen } from "electron";
 import log from "electron-log";
 import type { InputEvent } from "@pairpair/shared";
-import { DOM_KEY_TO_VK } from "@pairpair/native-input";
+import { DOM_KEY_TO_MAC_KEYCODE, DOM_KEY_TO_VK } from "@pairpair/native-input";
 
 export interface CaptureArea {
   x: number;
@@ -128,6 +128,14 @@ function normalizedToScreen(normalizedX: number, normalizedY: number, area: Capt
   return { x, y };
 }
 
+function getPlatformKeyCode(code: string): number | undefined {
+  if (process.platform === "darwin") {
+    return DOM_KEY_TO_MAC_KEYCODE[code];
+  }
+
+  return DOM_KEY_TO_VK[code];
+}
+
 export function injectInputEvent(event: InputEvent): boolean {
   const area = currentCaptureArea ?? getCaptureAreaFromDisplay();
   const nativeInput = getNativeInputModule();
@@ -166,20 +174,20 @@ export function injectInputEvent(event: InputEvent): boolean {
         break;
       }
       case "keyboard.down": {
-        const vkCode = DOM_KEY_TO_VK[event.code];
-        if (vkCode !== undefined) {
-          nativeInput.keyDown(vkCode);
+        const keyCode = getPlatformKeyCode(event.code);
+        if (keyCode !== undefined) {
+          nativeInput.keyDown(keyCode);
         } else {
-          log.warn(`Unknown key code: ${event.code}`);
+          log.warn(`Unknown key code for ${process.platform}: ${event.code}`);
         }
         break;
       }
       case "keyboard.up": {
-        const vkCode = DOM_KEY_TO_VK[event.code];
-        if (vkCode !== undefined) {
-          nativeInput.keyUp(vkCode);
+        const keyCode = getPlatformKeyCode(event.code);
+        if (keyCode !== undefined) {
+          nativeInput.keyUp(keyCode);
         } else {
-          log.warn(`Unknown key code: ${event.code}`);
+          log.warn(`Unknown key code for ${process.platform}: ${event.code}`);
         }
         break;
       }

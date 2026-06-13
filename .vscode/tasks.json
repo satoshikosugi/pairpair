@@ -1,0 +1,167 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PairPair Signaling Server",
+      "type": "shell",
+      "command": "cd apps/signaling-server && npx pnpm@9 dev",
+      "isBackground": true,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PairPair Host",
+      "type": "shell",
+      "command": "cd apps/desktop && npx pnpm@9 dev",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
+    },
+    {
+      "label": "PairPair Guest",
+      "type": "shell",
+      "command": "cd apps/desktop && npx pnpm@9 dev",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new"
+      }
+    },
+    {
+      "label": "PairPair Test (Server + Host)",
+      "type": "shell",
+      "command": "start cmd /k \"cd /d c:\\Projects\\PairPair\\apps\\signaling-server && npx pnpm@9 dev\" && timeout /t 3 && start cmd /k \"cd /d c:\\Projects\\PairPair\\apps\\desktop && npx pnpm@9 dev\"",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "PairPair Dev",
+      "type": "shell",
+      "command": "cd apps/desktop && npx pnpm@9 dev",
+      "isBackground": false,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "PairPair Build",
+      "type": "shell",
+      "command": "npx pnpm@9 build",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "PairPair Install",
+      "type": "shell",
+      "command": "npx pnpm@9 install",
+      "isBackground": false,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "GCP Deploy: Signaling Server",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"./gcp-deploy.ps1\"",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "GCP Deploy: Signaling Server (Custom)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-Command",
+        "./gcp-deploy.ps1 -ProjectId '${input:gcpProjectId}' -Region '${input:gcpRegion}' -ServiceName '${input:gcpServiceName}'"
+      ],
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "GCP Deploy: Build First",
+      "type": "shell",
+      "command": "npx pnpm@9 build && powershell -NoProfile -ExecutionPolicy Bypass -Command \"./gcp-deploy.ps1\"",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$tsc"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "gcpProjectId",
+      "type": "promptString",
+      "description": "GCP Project ID",
+      "default": "web-app-project-491513"
+    },
+    {
+      "id": "gcpRegion",
+      "type": "promptString",
+      "description": "GCP Region (default: asia-northeast1)",
+      "default": "asia-northeast1"
+    },
+    {
+      "id": "gcpServiceName",
+      "type": "promptString",
+      "description": "Cloud Run Service Name",
+      "default": "pairpair-signaling-server"
+    }
+  ]
+}

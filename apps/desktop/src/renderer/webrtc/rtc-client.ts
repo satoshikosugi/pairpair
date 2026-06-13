@@ -6,6 +6,15 @@ import { dataChannelManager } from "./data-channel";
 
 let peerConnection: RTCPeerConnection | null = null;
 let localStream: MediaStream | null = null;
+let remoteStream: MediaStream | null = null;
+let remoteVideoElement: HTMLVideoElement | null = null;
+
+function attachRemoteStreamToElement(): void {
+  if (!remoteVideoElement || !remoteStream) return;
+  if (remoteVideoElement.srcObject !== remoteStream) {
+    remoteVideoElement.srcObject = remoteStream;
+  }
+}
 
 function getIceServers(): RTCIceServer[] {
   const stunServer = useSettingsStore.getState().stunServer;
@@ -189,10 +198,9 @@ export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> 
   });
 
   pc.ontrack = (event) => {
-    const videoEl = document.getElementById("remote-video") as HTMLVideoElement | null;
-    if (videoEl && event.streams[0]) {
-      videoEl.srcObject = event.streams[0];
-    }
+    if (!event.streams[0]) return;
+    remoteStream = event.streams[0];
+    attachRemoteStreamToElement();
   };
 
   pc.onicecandidate = (event) => {
@@ -249,12 +257,22 @@ export function closePeerConnection(): void {
     localStream.getTracks().forEach((t) => t.stop());
     localStream = null;
   }
+  remoteStream = null;
+  if (remoteVideoElement) {
+    remoteVideoElement.srcObject = null;
+  }
   peerConnection?.close();
   peerConnection = null;
 }
 
 export function getPeerConnection(): RTCPeerConnection | null {
   return peerConnection;
+}
+
+export function bindRemoteVideoElement(element: HTMLVideoElement | null): void {
+  remoteVideoElement = element;
+  if (!remoteVideoElement) return;
+  attachRemoteStreamToElement();
 }
 
 /**

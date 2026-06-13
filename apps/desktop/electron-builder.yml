@@ -11,7 +11,7 @@ win:
       arch:
         - x64
   extraResources:
-    - from: "../../packages/native-input/native/"
+    - from: "../../packages/native-input/"
       to: "native-input/"
       filter:
         - "*.node"
@@ -23,7 +23,7 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extraResources:
-    - from: "../../packages/native-input/native/"
+    - from: "../../packages/native-input/"
       to: "native-input/"
       filter:
         - "*.node"

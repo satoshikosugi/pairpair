@@ -13,8 +13,39 @@ export interface NativeInputModule {
 }
 
 declare const require: (id: string) => unknown;
+declare const process:
+  | {
+    versions?: { electron?: string };
+    arch?: string;
+    platform?: string;
+    resourcesPath?: string;
+  }
+  | undefined;
 
 let nativeModule: NativeInputModule | null = null;
+
+function getPackagedBinaryPath(): string | null {
+  if (typeof process === "undefined" || !process.versions?.electron) return null;
+
+  const { arch, platform, resourcesPath } = process;
+  if (!resourcesPath) return null;
+
+  const binaryName = (() => {
+    if (platform === "win32") {
+      if (arch === "x64") return "index.win32-x64-msvc.node";
+      if (arch === "ia32") return "index.win32-ia32-msvc.node";
+      if (arch === "arm64") return "index.win32-arm64-msvc.node";
+    }
+    if (platform === "darwin") {
+      if (arch === "x64") return "index.darwin-x64.node";
+      if (arch === "arm64") return "index.darwin-arm64.node";
+    }
+    return null;
+  })();
+
+  if (!binaryName) return null;
+  return `${resourcesPath}/native-input/${binaryName}`;
+}
 
 function loadNativeModule(): NativeInputModule | null {
   try {
@@ -22,8 +53,18 @@ function loadNativeModule(): NativeInputModule | null {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const addon = require("../index.js");
     return addon as NativeInputModule;
-  } catch {
-    console.warn("[native-input] Native addon not available, using stub");
+  } catch (rootError) {
+    const packagedBinaryPath = getPackagedBinaryPath();
+    if (packagedBinaryPath) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const addon = require(packagedBinaryPath);
+        return addon as NativeInputModule;
+      } catch (packagedError) {
+        console.warn("[native-input] Failed to load packaged native addon:", packagedError);
+      }
+    }
+    console.warn("[native-input] Native addon not available, using stub:", rootError);
     return null;
   }
 }

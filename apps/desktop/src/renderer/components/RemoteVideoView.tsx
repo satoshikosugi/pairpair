@@ -3,6 +3,7 @@ import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, MouseDown
 import { toNormalizedCoordinate } from "../utils/coordinate";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";
+import { bindRemoteVideoElement } from "../webrtc/rtc-client";
 
 const MOUSE_MOVE_INTERVAL_MS = 16;
 
@@ -41,6 +42,13 @@ export function RemoteVideoView({
       videoRef.current.srcObject = stream;
     }
   }, [stream]);
+
+  useEffect(() => {
+    bindRemoteVideoElement(videoRef.current);
+    return () => {
+      bindRemoteVideoElement(null);
+    };
+  }, []);
 
   const getPoint = useCallback((clientX: number, clientY: number): AnnotationPoint | null => {
     if (!videoRef.current) return null;

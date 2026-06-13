@@ -209,6 +209,12 @@ function openGuideWindow(kind: HelpGuideKind): void {
   void win.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(buildGuideHtml(kind))}`);
 }
 
+function openMainWindowDevTools(): void {
+  const win = BrowserWindow.getFocusedWindow() ?? getMainWindow();
+  if (!win || win.isDestroyed()) return;
+  win.webContents.openDevTools({ mode: "detach" });
+}
+
 export function setupApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     {
@@ -241,6 +247,11 @@ export function setupApplicationMenu(): void {
         {
           label: "ゲストの使い方",
           click: () => openGuideWindow("guest"),
+        },
+        { type: "separator" },
+        {
+          label: "DevTools を表示",
+          click: () => openMainWindowDevTools(),
         },
       ],
     },

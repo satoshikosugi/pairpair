@@ -1,6 +1,7 @@
 import type WebSocket from "ws";
 import { logger } from "../infra/logger";
 import {
+  getGuestWs,
   registerHost,
   registerGuest,
   sendToHost,
@@ -164,6 +165,19 @@ async function handleHostRegister(
   registerHost(sessionId, ws);
   setCtx(sessionId, "host");
   ws.send(JSON.stringify({ type: "host.registered", sessionId }));
+
+  const guestWs = getGuestWs(sessionId);
+  if (guestWs && guestWs.readyState === guestWs.OPEN) {
+    sendToHost(sessionId, {
+      type: "guest.joined",
+      sessionId,
+      payload: {
+        guestDeviceName: session.guestDeviceName ?? "Unknown",
+        platform: session.guestPlatform ?? "win32",
+      },
+    });
+  }
+
   logger.info({ sessionId }, "Host registered on WebSocket");
 }
 

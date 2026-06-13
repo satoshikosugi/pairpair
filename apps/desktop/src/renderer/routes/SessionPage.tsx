@@ -49,6 +49,7 @@ const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
 const FULLSCREEN_HINT_DURATION_MS = 5000;
 const TOOLBAR_IDLE_FADE_MS = 5000;
+const FULLSCREEN_REQUEST_TIMEOUT_MS = 1500;
 const ROLE_SWITCH_READY_RETRY_MS = 250;
 const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 
@@ -172,6 +173,7 @@ export function SessionPage(): React.ReactElement {
   const roleSwitchInProgressRef = useRef(roleSwitchInProgress);
   const fullscreenRef = useRef(fullscreen);
   const fullscreenRequestPendingRef = useRef(false);
+  const fullscreenRequestTimerRef = useRef<number | null>(null);
 
   const STATE_LABEL: Record<string, string> = {
     idle: "アイドル",
@@ -303,6 +305,14 @@ export function SessionPage(): React.ReactElement {
     pendingRoleSwitchGuestTokenRef.current = null;
   }, []);
 
+  const clearFullscreenRequest = useCallback(() => {
+    fullscreenRequestPendingRef.current = false;
+    if (fullscreenRequestTimerRef.current !== null) {
+      window.clearTimeout(fullscreenRequestTimerRef.current);
+      fullscreenRequestTimerRef.current = null;
+    }
+  }, []);
+
   const sendRoleSwitchReady = useCallback((nextHostToken: string) => {
     dataChannelManager.sendControl({ type: "session.roleSwitch.ready", hostToken: nextHostToken });
   }, []);
@@ -331,6 +341,7 @@ export function SessionPage(): React.ReactElement {
     );
     clearRoleSwitchTimeout();
     clearRoleSwitchReadyRetry();
+    clearFullscreenRequest();
     setShowRoleSwitchPicker(false);
     setFullscreen(false);
     hostPeerAuthenticator.reset();
@@ -345,7 +356,7 @@ export function SessionPage(): React.ReactElement {
     if (controlMessageHandlerRef.current) {
       dataChannelManager.onControl(controlMessageHandlerRef.current);
     }
-  }, [clearRoleSwitchReadyRetry, clearRoleSwitchTimeout, sessionId]);
+  }, [clearFullscreenRequest, clearRoleSwitchReadyRetry, clearRoleSwitchTimeout, sessionId]);
 
   const reconnectAsGuestAfterRoleSwitch = useCallback(async (nextGuestToken: string) => {
     if (!sessionId || !signalingUrl || !code) {
@@ -624,17 +635,21 @@ export function SessionPage(): React.ReactElement {
     const previousFullscreen = fullscreenRef.current;
     const nextFullscreen = !previousFullscreen;
     fullscreenRequestPendingRef.current = true;
+    fullscreenRequestTimerRef.current = window.setTimeout(() => {
+      clearFullscreenRequest();
+      setError("全画面表示の切り替え応答がタイムアウトしました");
+    }, FULLSCREEN_REQUEST_TIMEOUT_MS);
     void window.pairpair.setGuestFullscreen(nextFullscreen).then((accepted) => {
       if (!accepted) {
-        fullscreenRequestPendingRef.current = false;
+        clearFullscreenRequest();
         setError("全画面表示の切り替えに失敗しました");
       }
     }).catch((err) => {
-      fullscreenRequestPendingRef.current = false;
+      clearFullscreenRequest();
       setFullscreen(previousFullscreen);
       console.error(err);
     });
-  }, [setError]);
+  }, [clearFullscreenRequest, setError]);
 
   const restoreToolboxIntoView = useCallback(() => {
     setToolboxMinimized(false);
@@ -702,9 +717,10 @@ export function SessionPage(): React.ReactElement {
       if (toolboxIdleTimerRef.current !== null) {
         window.clearTimeout(toolboxIdleTimerRef.current);
       }
+      clearFullscreenRequest();
       clearRoleSwitchTimeout();
     };
-  }, [clearRoleSwitchTimeout, handleDisconnect, handleReleaseControl, isHost]);
+  }, [clearFullscreenRequest, clearRoleSwitchTimeout, handleDisconnect, handleReleaseControl, isHost]);
 
   useEffect(() => {
     if (isHost) return;
@@ -765,7 +781,7 @@ export function SessionPage(): React.ReactElement {
 
   useEffect(() => {
     const handleFullscreenChanged = (nextFullscreen: boolean) => {
-      fullscreenRequestPendingRef.current = false;
+      clearFullscreenRequest();
       setFullscreen(nextFullscreen);
 
       if (fullscreenHintTimerRef.current !== null) {
@@ -795,7 +811,7 @@ export function SessionPage(): React.ReactElement {
         window.clearTimeout(fullscreenHintTimerRef.current);
       }
     };
-  }, []);
+  }, [clearFullscreenRequest]);
 
   useEffect(() => {
     if (!fullscreen) {

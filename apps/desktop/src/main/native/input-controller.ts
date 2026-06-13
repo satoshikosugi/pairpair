@@ -13,9 +13,14 @@ export interface CaptureArea {
 }
 
 let currentCaptureArea: CaptureArea | null = null;
+let lastRemoteInputAt = 0;
 
 export function setCaptureArea(area: CaptureArea): void {
   currentCaptureArea = area;
+}
+
+export function getLastRemoteInputAt(): number {
+  return lastRemoteInputAt;
 }
 
 export function getCaptureAreaFromDisplay(displayId?: string): CaptureArea {
@@ -51,6 +56,7 @@ export function injectInputEvent(event: InputEvent): boolean {
   }
 
   try {
+    lastRemoteInputAt = Date.now();
     switch (event.type) {
       case "mouse.move": {
         const { x, y } = normalizedToScreen(event.x, event.y, area);

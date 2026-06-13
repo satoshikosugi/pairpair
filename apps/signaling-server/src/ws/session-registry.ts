@@ -26,7 +26,7 @@ export function registerHost(sessionId: string, ws: WebSocket): void {
 
   ws.on("close", () => {
     logger.info({ sessionId }, "Host WebSocket closed");
-    void handleHostDisconnect(sessionId);
+    void handleHostDisconnect(sessionId, ws);
   });
 
   logger.info({ sessionId }, "Host WebSocket registered");
@@ -38,7 +38,7 @@ export function registerGuest(sessionId: string, ws: WebSocket): void {
 
   ws.on("close", () => {
     logger.info({ sessionId }, "Guest WebSocket closed");
-    void handleGuestDisconnect(sessionId);
+    void handleGuestDisconnect(sessionId, ws);
   });
 
   logger.info({ sessionId }, "Guest WebSocket registered");
@@ -85,9 +85,10 @@ function isRoleSwitchInProgress(entry: SessionConnections | undefined): boolean 
   return Boolean(entry?.roleSwitchUntil && entry.roleSwitchUntil > Date.now());
 }
 
-async function handleHostDisconnect(sessionId: string): Promise<void> {
+async function handleHostDisconnect(sessionId: string, closingWs: WebSocket): Promise<void> {
   const entry = registry.get(sessionId);
   if (!entry) return;
+  if (entry.hostWs !== closingWs) return;
 
   if (isRoleSwitchInProgress(entry)) {
     entry.hostWs = undefined;
@@ -107,9 +108,10 @@ async function handleHostDisconnect(sessionId: string): Promise<void> {
   await cleanupIfEmpty(sessionId);
 }
 
-async function handleGuestDisconnect(sessionId: string): Promise<void> {
+async function handleGuestDisconnect(sessionId: string, closingWs: WebSocket): Promise<void> {
   const entry = registry.get(sessionId);
   if (!entry) return;
+  if (entry.guestWs !== closingWs) return;
 
   if (isRoleSwitchInProgress(entry)) {
     entry.guestWs = undefined;

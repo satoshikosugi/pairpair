@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld("pairpair", {
   removeFullscreenChangedListener: () => {
     ipcRenderer.removeAllListeners("session:fullscreen-changed");
   },
+  onPromoteGuestToHost: (callback: () => void) => {
+    ipcRenderer.on("session:promote-guest-to-host", callback);
+  },
+  removePromoteGuestToHostListener: () => {
+    ipcRenderer.removeAllListeners("session:promote-guest-to-host");
+  },
 
   // System-wide activity monitor (for host adaptive quality)
   startActivityMonitor: () => ipcRenderer.invoke("activity:start"),
@@ -94,6 +100,8 @@ declare global {
       removeShortcutListener: () => void;
       onFullscreenChanged: (callback: (fullscreen: boolean) => void) => void;
       removeFullscreenChangedListener: () => void;
+      onPromoteGuestToHost: (callback: () => void) => void;
+      removePromoteGuestToHostListener: () => void;
       startActivityMonitor: () => Promise<void>;
       stopActivityMonitor: () => Promise<void>;
       onSystemActivity: (callback: () => void) => void;

@@ -116,6 +116,16 @@ export interface GuestCursorMessage {
   cursor: GuestCursorIndicator;
 }
 
+export interface SessionRoleSwitchRequestMessage {
+  type: "session.roleSwitch.request";
+  guestToken: string;
+}
+
+export interface SessionRoleSwitchReadyMessage {
+  type: "session.roleSwitch.ready";
+  hostToken: string;
+}
+
 export type ControlMessage =
   | RemoteControlRequestMessage
   | RemoteControlGrantedMessage
@@ -139,4 +149,6 @@ export type ControlMessage =
   | AnnotationStrokeEndMessage
   | AnnotationUndoMessage
   | AnnotationClearMessage
-  | GuestCursorMessage;
+  | GuestCursorMessage
+  | SessionRoleSwitchRequestMessage
+  | SessionRoleSwitchReadyMessage;

@@ -27,8 +27,15 @@ import {
   closePeerConnection,
   applyQualityPreset,
   setAdaptiveParameters,
-  getPeerConnection,
+  createPeerConnectionAsGuest,
+  createPeerConnectionAsHost,
   getLocalStreamResolution,
+  handleAnswer,
+  handleIce,
+  handleOffer,
+  markPeerAuthenticated,
+  startHostScreenShare,
+  getPeerConnection,
   switchScreenSource,
 } from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
@@ -36,6 +43,7 @@ import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc
 import { startMetricsCollection, startSharpnessAnalysis } from "../utils/quality-metrics";
 import { dataChannelManager } from "../webrtc/data-channel";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
+import { guestPeerAuthenticator, hostPeerAuthenticator } from "../webrtc/peer-auth";
 
 const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
@@ -97,11 +105,16 @@ function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
 }
 
 export function SessionPage(): React.ReactElement {
-  const { navigate } = useAppStore();
+  const { navigate, setError } = useAppStore();
   const {
+    sessionId,
+    code,
     role,
     hostDeviceName,
     guestDeviceName,
+    signalingUrl,
+    hostToken,
+    guestToken,
     connectionState,
     controlState,
     currentQualityPreset,
@@ -132,6 +145,8 @@ export function SessionPage(): React.ReactElement {
   const [toolboxMinimized, setToolboxMinimized] = useState(false);
   const [toolboxPosition, setToolboxPosition] = useState({ x: 16, y: 76 });
   const [toolboxDimmed, setToolboxDimmed] = useState(false);
+  const [showRoleSwitchPicker, setShowRoleSwitchPicker] = useState(false);
+  const [roleSwitchInProgress, setRoleSwitchInProgress] = useState(false);
 
   const adaptiveInputHandlerRef = useRef<((e: PairPairInputEvent) => void) | null>(null);
   const metricsStopRef = useRef<(() => void) | null>(null);
@@ -146,6 +161,8 @@ export function SessionPage(): React.ReactElement {
   const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
   const toolboxDragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const toolboxElementRef = useRef<HTMLDivElement | null>(null);
+  const pendingRoleSwitchSourceRef = useRef<ScreenSource | null>(null);
+  const roleSwitchTimeoutRef = useRef<number | null>(null);
   const isHost = role === "host";
 
   const STATE_LABEL: Record<string, string> = {
@@ -262,6 +279,172 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setControlState("controlRevoked");
     dataChannelManager.sendControl({ type: "remoteControl.revoked" });
   }, []);
+
+  const clearRoleSwitchTimeout = useCallback(() => {
+    if (roleSwitchTimeoutRef.current !== null) {
+      window.clearTimeout(roleSwitchTimeoutRef.current);
+      roleSwitchTimeoutRef.current = null;
+    }
+  }, []);
+
+  const preparePeerReconnection = useCallback(() => {
+    clearRoleSwitchTimeout();
+    hostPeerAuthenticator.reset();
+    guestPeerAuthenticator.stop();
+    activeStrokeRef.current = null;
+    annotationsRef.current = [];
+    remoteCursorRef.current = null;
+    setAnnotations([]);
+    setRemoteCursor(null);
+    setMarkerEnabled(false);
+    signalingClient.disconnect();
+    closePeerConnection();
+    if (controlMessageHandlerRef.current) {
+      dataChannelManager.onControl(controlMessageHandlerRef.current);
+    }
+  }, [clearRoleSwitchTimeout]);
+
+  const reconnectAsGuestAfterRoleSwitch = useCallback(async (nextGuestToken: string) => {
+    if (!sessionId || !signalingUrl || !code) {
+      throw new Error("役割切替に必要なセッション情報が不足しています");
+    }
+
+    const nextHostName = guestDeviceName ?? "PairPair Guest";
+    preparePeerReconnection();
+
+    useSessionStore.getState().setRole("guest");
+    useSessionStore.getState().setHostDeviceName(nextHostName);
+    useSessionStore.getState().setGuestDeviceName(null);
+    useSessionStore.getState().setControlState("viewOnly");
+    useSessionStore.getState().setConnectionState("connecting");
+    useSessionStore.getState().setHostToken(null);
+    useSessionStore.getState().setGuestToken(nextGuestToken);
+
+    signalingClient.connect(signalingUrl, sessionId, nextGuestToken, "guest");
+
+    await createPeerConnectionAsGuest();
+    guestPeerAuthenticator.start(
+      code,
+      () => {
+        setRoleSwitchInProgress(false);
+        setError("役割切替後の認証で追加パスフレーズが要求されました。現在の実装では再入力に未対応です。");
+      },
+      () => {
+        setRoleSwitchInProgress(false);
+      },
+      (reason) => {
+        setRoleSwitchInProgress(false);
+        setError(`役割切替後のゲスト認証に失敗しました: ${reason}`);
+      },
+    );
+
+    signalingClient.on("rtc.offer", (msg) => {
+      const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
+      void handleOffer(sdp).catch(console.error);
+    });
+
+    signalingClient.on("rtc.ice", (msg) => {
+      const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
+      void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
+    });
+  }, [code, guestDeviceName, preparePeerReconnection, sessionId, setError, signalingUrl]);
+
+  const reconnectAsHostAfterRoleSwitch = useCallback(async (nextHostToken: string, source: ScreenSource) => {
+    if (!sessionId || !signalingUrl || !guestToken || !code) {
+      throw new Error("役割切替に必要なセッション情報が不足しています");
+    }
+
+    const nextGuestName = hostDeviceName ?? "PairPair Host";
+    const preset = selectedPreset === "Custom"
+      ? ({ ...customPreset, name: "Custom" } as QualityPreset)
+      : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
+    const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveResPreset] : undefined;
+
+    preparePeerReconnection();
+    await hostPeerAuthenticator.prepare(code, "");
+
+    useSessionStore.getState().setRole("host");
+    useSessionStore.getState().setGuestDeviceName(nextGuestName);
+    useSessionStore.getState().setHostDeviceName(null);
+    useSessionStore.getState().setControlState("viewOnly");
+    useSessionStore.getState().setConnectionState("connecting");
+    useSessionStore.getState().setHostToken(nextHostToken);
+    useSessionStore.getState().setGuestToken(guestToken);
+
+    signalingClient.connect(signalingUrl, sessionId, nextHostToken, "host");
+
+    signalingClient.on("guest.joined", () => {
+      void createPeerConnectionAsHost()
+        .then(() => {
+          hostPeerAuthenticator.start(
+            () => {
+              markPeerAuthenticated();
+              void startHostScreenShare(source.id, adaptiveMode ? adaptivePreset : preset)
+                .then(() => {
+                  setRoleSwitchInProgress(false);
+                  if (adaptiveMode) enableAdaptive(adaptiveResPreset);
+                })
+                .catch((err) => {
+                  setRoleSwitchInProgress(false);
+                  setError(`役割切替後の画面共有開始に失敗しました: ${String(err)}`);
+                });
+            },
+            (reason) => {
+              setRoleSwitchInProgress(false);
+              closePeerConnection();
+              setError(`役割切替後のホスト認証に失敗しました: ${reason}`);
+            },
+          );
+        })
+        .catch((err) => {
+          setRoleSwitchInProgress(false);
+          setError(`役割切替後のP2P接続に失敗しました: ${String(err)}`);
+        });
+    });
+
+    signalingClient.on("rtc.answer", (msg) => {
+      const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
+      void handleAnswer(sdp).catch(console.error);
+    });
+
+    signalingClient.on("rtc.ice", (msg) => {
+      const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
+      void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
+    });
+  }, [
+    adaptiveMode,
+    adaptiveResPreset,
+    code,
+    customPreset,
+    enableAdaptive,
+    guestToken,
+    hostDeviceName,
+    preparePeerReconnection,
+    selectedPreset,
+    sessionId,
+    setError,
+    signalingUrl,
+  ]);
+
+  const startGuestToHostRoleSwitch = useCallback(async (source: ScreenSource) => {
+    if (isHost) return;
+    if (!guestToken) {
+      setError("役割切替に必要なゲストトークンが見つかりません");
+      return;
+    }
+
+    pendingRoleSwitchSourceRef.current = source;
+    setShowRoleSwitchPicker(false);
+    setRoleSwitchInProgress(true);
+    clearRoleSwitchTimeout();
+    roleSwitchTimeoutRef.current = window.setTimeout(() => {
+      setRoleSwitchInProgress(false);
+      pendingRoleSwitchSourceRef.current = null;
+      setError("ホスト切替の応答がタイムアウトしました");
+      roleSwitchTimeoutRef.current = null;
+    }, 10000);
+    dataChannelManager.sendControl({ type: "session.roleSwitch.request", guestToken });
+  }, [clearRoleSwitchTimeout, guestToken, isHost, setError]);
 
   const upsertStrokePoint = useCallback((strokeId: string, point: AnnotationPoint) => {
     setAnnotations((prev) => {
@@ -425,8 +608,9 @@ export function SessionPage(): React.ReactElement {
       if (toolboxIdleTimerRef.current !== null) {
         window.clearTimeout(toolboxIdleTimerRef.current);
       }
+      clearRoleSwitchTimeout();
     };
-  }, [handleDisconnect, handleReleaseControl, isHost]);
+  }, [clearRoleSwitchTimeout, handleDisconnect, handleReleaseControl, isHost]);
 
   useEffect(() => {
     if (isHost) return;
@@ -452,6 +636,18 @@ export function SessionPage(): React.ReactElement {
       }
     };
   }, [isHost, refreshToolboxActivity]);
+
+  useEffect(() => {
+    const handlePromoteGuestToHost = () => {
+      if (isHost || roleSwitchInProgress) return;
+      setShowRoleSwitchPicker(true);
+    };
+
+    window.pairpair.onPromoteGuestToHost(handlePromoteGuestToHost);
+    return () => {
+      window.pairpair.removePromoteGuestToHostListener();
+    };
+  }, [isHost, roleSwitchInProgress]);
 
   useEffect(() => {
     if (isHost || !fullscreen) return;
@@ -732,6 +928,33 @@ export function SessionPage(): React.ReactElement {
           }
           break;
         }
+        case "session.roleSwitch.request": {
+          if (!isHost || !hostToken) return;
+          setRoleSwitchInProgress(true);
+          clearRoleSwitchTimeout();
+          dataChannelManager.sendControl({ type: "session.roleSwitch.ready", hostToken });
+          window.setTimeout(() => {
+            void reconnectAsGuestAfterRoleSwitch(message.guestToken).catch((err) => {
+              setRoleSwitchInProgress(false);
+              setError(`役割切替に失敗しました: ${String(err)}`);
+            });
+          }, 150);
+          break;
+        }
+        case "session.roleSwitch.ready": {
+          if (isHost) return;
+          const source = pendingRoleSwitchSourceRef.current;
+          if (!source) return;
+          clearRoleSwitchTimeout();
+          pendingRoleSwitchSourceRef.current = null;
+          window.setTimeout(() => {
+            void reconnectAsHostAfterRoleSwitch(message.hostToken, source).catch((err) => {
+              setRoleSwitchInProgress(false);
+              setError(`役割切替に失敗しました: ${String(err)}`);
+            });
+          }, 150);
+          break;
+        }
       }
     };
 
@@ -742,7 +965,17 @@ export function SessionPage(): React.ReactElement {
         dataChannelManager.offControl(controlMessageHandlerRef.current);
       }
     };
-  }, [isHost, setCursorWithTimeout, syncHostOverlay, upsertStrokePoint]);
+  }, [
+    clearRoleSwitchTimeout,
+    hostToken,
+    isHost,
+    reconnectAsGuestAfterRoleSwitch,
+    reconnectAsHostAfterRoleSwitch,
+    setCursorWithTimeout,
+    setError,
+    syncHostOverlay,
+    upsertStrokePoint,
+  ]);
 
   useEffect(() => {
     if (!isHost) return;
@@ -1226,6 +1459,81 @@ export function SessionPage(): React.ReactElement {
       >
         {markerToolbar}
       </div>
+
+      {showRoleSwitchPicker && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.78)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 999,
+          }}
+          onClick={() => setShowRoleSwitchPicker(false)}
+        >
+          <div
+            style={{
+              background: "#16213e",
+              border: "1px solid #333",
+              borderRadius: 8,
+              padding: 24,
+              maxWidth: 900,
+              maxHeight: "80vh",
+              overflow: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ color: "#fff", marginBottom: 8, fontSize: 18 }}>自分をホストに切り替え</h3>
+            <p style={{ color: "#9cb0c8", marginTop: 0, marginBottom: 20, fontSize: 13 }}>
+              共有する画面やアプリを選択すると、現在のホストとゲストの役割を入れ替えます。
+            </p>
+            <ScreenSourcePicker
+              onSelect={(source) => {
+                void startGuestToHostRoleSwitch(source);
+              }}
+            />
+            <button
+              onClick={() => setShowRoleSwitchPicker(false)}
+              style={{
+                padding: "8px 16px",
+                background: "#444",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                marginTop: 16,
+              }}
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+
+      {roleSwitchInProgress && (
+        <div
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: 20,
+            zIndex: 1000,
+            padding: "12px 16px",
+            borderRadius: 10,
+            background: "rgba(10, 16, 28, 0.92)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            color: "#fff",
+            boxShadow: "0 18px 36px rgba(0,0,0,0.34)",
+          }}
+        >
+          役割を切り替えています...
+        </div>
+      )}
 
       {fullscreen && fullscreenHintVisible && (
         <div

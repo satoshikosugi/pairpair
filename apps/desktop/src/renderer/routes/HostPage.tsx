@@ -25,7 +25,18 @@ const STATE_LABEL: Record<string, string> = {
 
 export function HostPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
-  const { setSessionId, setCode, setRole, setExpiresAt, setGuestDeviceName, code, expiresAt } = useSessionStore();
+  const {
+    setSessionId,
+    setCode,
+    setRole,
+    setExpiresAt,
+    setGuestDeviceName,
+    setSignalingUrl,
+    setHostToken,
+    setGuestToken,
+    code,
+    expiresAt,
+  } = useSessionStore();
   const settings = useSettingsStore();
   const { pairproProfiles } = settings;
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
@@ -143,6 +154,9 @@ export function HostPage(): React.ReactElement {
       setCode(data.code);
       setRole("host");
       setExpiresAt(data.expiresAt);
+      setSignalingUrl(data.wsUrl);
+      setHostToken(data.hostToken);
+      setGuestToken(null);
       await hostPeerAuthenticator.prepare(data.code, passphrase.trim());
       if (selectedSource) {
         void settings.saveToElectron("lastSourceName", selectedSource.name);

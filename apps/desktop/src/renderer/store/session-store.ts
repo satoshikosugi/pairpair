@@ -17,6 +17,9 @@ interface SessionState {
   controlState: ControlState;
   hostDeviceName: string | null;
   guestDeviceName: string | null;
+  signalingUrl: string | null;
+  hostToken: string | null;
+  guestToken: string | null;
   selectedSourceId: string | null;
   expiresAt: string | null;
   currentQualityPreset: QualityPresetName;
@@ -33,6 +36,9 @@ interface SessionState {
   setControlState: (state: ControlState) => void;
   setHostDeviceName: (name: string | null) => void;
   setGuestDeviceName: (name: string | null) => void;
+  setSignalingUrl: (url: string | null) => void;
+  setHostToken: (token: string | null) => void;
+  setGuestToken: (token: string | null) => void;
   setSelectedSourceId: (id: string | null) => void;
   setExpiresAt: (at: string | null) => void;
   setCurrentQualityPreset: (preset: QualityPresetName, custom?: Partial<QualityPreset>) => void;
@@ -53,6 +59,9 @@ const initialState = {
   controlState: "viewOnly" as ControlState,
   hostDeviceName: null,
   guestDeviceName: null,
+  signalingUrl: null,
+  hostToken: null,
+  guestToken: null,
   selectedSourceId: null,
   expiresAt: null,
   currentQualityPreset: "Balanced" as QualityPresetName,
@@ -74,6 +83,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   setControlState: (state) => set({ controlState: state }),
   setHostDeviceName: (name) => set({ hostDeviceName: name }),
   setGuestDeviceName: (name) => set({ guestDeviceName: name }),
+  setSignalingUrl: (url) => set({ signalingUrl: url }),
+  setHostToken: (token) => set({ hostToken: token }),
+  setGuestToken: (token) => set({ guestToken: token }),
   setSelectedSourceId: (id) => set({ selectedSourceId: id }),
   setExpiresAt: (at) => set({ expiresAt: at }),
   setCurrentQualityPreset: (preset, custom) => set({

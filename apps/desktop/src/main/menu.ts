@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
 import { getMainWindow } from "./window";
+import { sendToRenderer } from "./window";
 
 type HelpGuideKind = "host" | "guest";
 
@@ -231,6 +232,15 @@ export function setupApplicationMenu(): void {
         {
           label: "ゲストの使い方",
           click: () => openGuideWindow("guest"),
+        },
+      ],
+    },
+    {
+      label: "役割切替",
+      submenu: [
+        {
+          label: "自分をホストに切り替え",
+          click: () => sendToRenderer("session:promote-guest-to-host"),
         },
       ],
     },

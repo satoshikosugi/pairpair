@@ -9,7 +9,15 @@ const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeas
 
 export function GuestPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
-  const { setSessionId, setRole, setHostDeviceName } = useSessionStore();
+  const {
+    setSessionId,
+    setCode: setSessionCode,
+    setRole,
+    setHostDeviceName,
+    setSignalingUrl,
+    setGuestToken,
+    setHostToken,
+  } = useSessionStore();
   const [code, setCode] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [requiresPassphrase, setRequiresPassphrase] = useState(false);
@@ -55,8 +63,12 @@ export function GuestPage(): React.ReactElement {
       const data = (await res.json()) as { sessionId: string; guestToken: string; hostDeviceName: string; wsUrl: string };
 
       setSessionId(data.sessionId);
+      setSessionCode(cleanCode);
       setRole("guest");
       setHostDeviceName(data.hostDeviceName);
+      setSignalingUrl(data.wsUrl);
+      setGuestToken(data.guestToken);
+      setHostToken(null);
 
       signalingClient.connect(data.wsUrl, data.sessionId, data.guestToken, "guest");
 

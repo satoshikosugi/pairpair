@@ -10,6 +10,7 @@ export interface NativeInputModule {
   keyDown(vkCode: number): void;
   keyUp(vkCode: number): void;
   typeText(text: string): void;
+  focusWindow(windowId: string): void;
 }
 
 declare const require: (id: string) => unknown;
@@ -96,6 +97,7 @@ function getModule(): NativeInputModule {
       keyDown: (vkCode) => console.warn(`[native-input] keyDown(${vkCode}) - stub`),
       keyUp: (vkCode) => console.warn(`[native-input] keyUp(${vkCode}) - stub`),
       typeText: (text) => console.warn(`[native-input] typeText(${text}) - stub`),
+      focusWindow: (windowId) => console.warn(`[native-input] focusWindow(${windowId}) - stub`),
     };
   }
   return nativeModule;
@@ -131,6 +133,10 @@ export function keyUp(vkCode: number): void {
 
 export function typeText(text: string): void {
   getModule().typeText(text);
+}
+
+export function focusWindow(windowId: string): void {
+  getModule().focusWindow(windowId);
 }
 
 // DOM code to Windows virtual-key mapping

@@ -1,6 +1,6 @@
 import { ipcMain, desktopCapturer, screen } from "electron";
 import log from "electron-log";
-import { setCaptureArea } from "../native/input-controller";
+import { setCaptureArea, setTargetWindowId } from "../native/input-controller";
 import { setHostOverlayBounds } from "../overlay/host-overlay";
 
 let _selectedSourceId: string | null = null;
@@ -32,6 +32,7 @@ export function setupScreenIpc(): void {
 
   ipcMain.handle("screen:setSelectedSource", async (_event, sourceId: string) => {
     _selectedSourceId = sourceId;
+    setTargetWindowId(sourceId.startsWith("window:") ? sourceId.split(":")[1] ?? null : null);
     try {
       const sources = await desktopCapturer.getSources({ types: ["screen", "window"] });
       const source = sources.find((s) => s.id === sourceId);

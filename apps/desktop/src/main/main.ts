@@ -35,7 +35,9 @@ function createMainWindow(): BrowserWindow {
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);
-    win.webContents.openDevTools();
+    if (process.env.PAIRPAIR_OPEN_DEVTOOLS === "1") {
+      win.webContents.openDevTools();
+    }
   } else {
     void win.loadFile(path.join(__dirname, "../renderer/index.html"));
   }

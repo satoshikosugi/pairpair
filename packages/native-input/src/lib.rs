@@ -74,3 +74,14 @@ pub fn type_text(text: String) {
   #[cfg(not(any(target_os = "windows", target_os = "macos")))]
   let _ = text;
 }
+
+/// Bring a captured application window to the foreground before injecting input.
+#[napi]
+pub fn focus_window(window_id: String) {
+  #[cfg(target_os = "windows")]
+  windows_input::focus_window(&window_id);
+  #[cfg(target_os = "macos")]
+  macos_input::focus_window(&window_id);
+  #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+  let _ = window_id;
+}

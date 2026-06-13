@@ -18,6 +18,7 @@ interface RemoteVideoViewProps {
   onHoverPreview: (point: AnnotationPoint | null) => void;
   fullscreen: boolean;
   displayMode: "fit" | "native";
+  wheelDirection: "standard" | "natural";
 }
 
 export function RemoteVideoView({
@@ -31,6 +32,7 @@ export function RemoteVideoView({
   onHoverPreview,
   fullscreen,
   displayMode,
+  wheelDirection,
 }: RemoteVideoViewProps): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -206,14 +208,14 @@ export function RemoteVideoView({
       e.preventDefault();
       const event: MouseWheelEvent = {
         type: "mouse.wheel",
-        deltaX: Math.round(e.deltaX),
-        deltaY: Math.round(e.deltaY),
+        deltaX: Math.round(e.deltaX * (wheelDirection === "standard" ? -1 : 1)),
+        deltaY: Math.round(e.deltaY * (wheelDirection === "standard" ? -1 : 1)),
         x: point.x,
         y: point.y,
       };
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled]
+    [canControl, getPoint, markerEnabled, wheelDirection]
   );
 
   const handleMouseLeave = useCallback(() => {

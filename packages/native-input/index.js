@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { moveMouse, mouseButton, mouseScroll, keyDown, keyUp, typeText } = nativeBinding
+const { moveMouse, mouseButton, mouseScroll, keyDown, keyUp, typeText, focusWindow } = nativeBinding
 
 module.exports.moveMouse = moveMouse
 module.exports.mouseButton = mouseButton
@@ -318,3 +318,4 @@ module.exports.mouseScroll = mouseScroll
 module.exports.keyDown = keyDown
 module.exports.keyUp = keyUp
 module.exports.typeText = typeText
+module.exports.focusWindow = focusWindow

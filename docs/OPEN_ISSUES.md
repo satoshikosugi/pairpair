@@ -4,6 +4,8 @@
 
 ## 優先度 High
 
+- P2P あいことば認証は Cloudflare OPAQUE v0.7.5（OPAQUE draft-07）を使用している
+  - 対応: RFC 9807 準拠かつ第三者レビュー済みの実装へ移行する
 - `pnpm` 前提が強く、`npm test` が環境によって失敗する
   - 対応: `corepack` 前提を README に明記し、CI でも `pnpm` を固定する
 - signaling server URL が renderer に直書きされている

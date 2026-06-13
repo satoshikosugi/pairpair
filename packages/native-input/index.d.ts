@@ -18,3 +18,5 @@ export declare function keyDown(vkCode: number): void
 export declare function keyUp(vkCode: number): void
 /** Type text using clipboard paste method */
 export declare function typeText(text: string): void
+/** Bring a captured application window to the foreground before injecting input. */
+export declare function focusWindow(windowId: string): void

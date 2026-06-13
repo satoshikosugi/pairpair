@@ -10,6 +10,7 @@ let remoteStream: MediaStream | null = null;
 let remoteVideoElement: HTMLVideoElement | null = null;
 let hostInputHandler: ((event: InputEvent) => void) | null = null;
 let hostControlHandler: ((message: ControlMessage) => void) | null = null;
+let peerAuthenticated = false;
 
 function attachRemoteStreamToElement(): void {
   if (!remoteVideoElement || !remoteStream) return;
@@ -23,13 +24,14 @@ function getIceServers(): RTCIceServer[] {
   return [{ urls: [stunServer] }];
 }
 
-export async function createPeerConnectionAsHost(sourceId: string, qualityPreset?: import("@pairpair/shared").QualityPreset): Promise<RTCPeerConnection> {
+export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
   const pc = new RTCPeerConnection({
     iceServers: getIceServers(),
     iceTransportPolicy: "all",
   });
 
   peerConnection = pc;
+  peerAuthenticated = false;
 
   dataChannelManager.setupAsHost(pc);
 
@@ -38,7 +40,7 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
   }
   hostInputHandler = async (event) => {
     const controlState = useSessionStore.getState().controlState;
-    if (controlState === "controlAllowed") {
+    if (peerAuthenticated && controlState === "controlAllowed") {
       const injected = await window.pairpair.injectInput(event);
       if (!injected) {
         console.error("[PairPair] Failed to inject remote input event", event);
@@ -51,6 +53,7 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
     dataChannelManager.offControl(hostControlHandler);
   }
   hostControlHandler = (message: ControlMessage) => {
+    if (!peerAuthenticated) return;
     if (message.type === "remoteControl.request") {
       useSessionStore.getState().setControlState("controlRequested");
     } else if (message.type === "remoteControl.grabbed") {
@@ -61,87 +64,6 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
     }
   };
   dataChannelManager.onControl(hostControlHandler);
-
-  // Tell main process which source to use before getDisplayMedia fires
-  await window.pairpair.setSelectedSource(sourceId);
-
-  try {
-    // Use the LONG EDGE of the preset as the max for both dimensions.
-    // This correctly handles portrait screens: a 1080x1920 screen with
-    // Balanced (1920x1080) gets maxDim=1920, so width=1080 and height=1920
-    // are both within the limit and captured at full native resolution.
-    // Plain `max: {width: preset.width, height: preset.height}` would force
-    // portrait screens into 608x1080 (aspect-ratio-preserved downscale).
-    const maxDim = qualityPreset
-      ? Math.max(qualityPreset.width, qualityPreset.height)
-      : 1920;
-    const videoConstraints = {
-      width:     { max: maxDim },
-      height:    { max: maxDim },
-      frameRate: { ideal: qualityPreset?.fps ?? 30 },
-    };
-
-    localStream = await navigator.mediaDevices.getDisplayMedia({
-      video: videoConstraints,
-    });
-
-    // Set detail hint: tells Chrome's encoder to optimize for sharpness (text/UI)
-    // rather than motion smoothness. This is the most impactful fix for blurry screen sharing.
-    localStream.getVideoTracks().forEach((track) => {
-      (track as MediaStreamTrack & { contentHint: string }).contentHint = "detail";
-    });
-
-    // Use addTransceiver (not addTrack) so that encodings are always
-    // populated in getParameters(), making setParameters() reliable.
-    const initialBitrate = qualityPreset
-      ? qualityPreset.bitrateMbps * 1_000_000
-      : 5_000_000;
-    const initialFps = qualityPreset ? qualityPreset.fps : 30;
-    localStream.getVideoTracks().forEach((track) => {
-      pc.addTransceiver(track, {
-        direction: "sendonly",
-        streams: [localStream!],
-        sendEncodings: [{
-          maxBitrate: initialBitrate,
-          maxFramerate: initialFps,
-          priority: "high",
-          // Note: scalabilityMode (L1T1) intentionally omitted — H.264 (our preferred codec)
-          // does not support SVC scalabilityMode and it causes encoding artifacts.
-        } as RTCRtpEncodingParameters],
-      });
-    });
-    // Non-video tracks added normally
-    localStream.getAudioTracks().forEach((track) => {
-      pc.addTrack(track, localStream!);
-    });
-
-    // VP9 is prioritised over H.264 for screen content:
-    // - VP9 (libvpx) activates a dedicated "screen content coding" mode when
-    //   contentHint="detail" is set, producing sharp text at the same bitrate.
-    // - H.264 HW encoders (MediaFoundation) are optimised for camera motion
-    //   and lack an equivalent screen-content mode.
-    // MUST be set BEFORE createOffer so the SDP reflects the preference.
-    const videoCaps = RTCRtpSender.getCapabilities?.("video");
-    if (videoCaps) {
-      const preferred = ["video/vp9", "video/h264", "video/vp8"];
-      const sortedCodecs = [
-        ...preferred.flatMap((mime) =>
-          videoCaps.codecs.filter((c) => c.mimeType.toLowerCase() === mime)
-        ),
-        ...videoCaps.codecs.filter(
-          (c) => !preferred.includes(c.mimeType.toLowerCase())
-        ),
-      ];
-      pc.getTransceivers()
-        .filter((t) => t.sender.track?.kind === "video")
-        .forEach((t) => {
-          try { t.setCodecPreferences(sortedCodecs); } catch { /* unsupported */ }
-        });
-    }
-  } catch (err) {
-    console.error("Failed to get display media:", err);
-    throw err;
-  }
 
   pc.onicecandidate = (event) => {
     if (event.candidate) {
@@ -184,6 +106,62 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
   });
 
   return pc;
+}
+
+export async function startHostScreenShare(
+  sourceId: string,
+  qualityPreset?: import("@pairpair/shared").QualityPreset,
+): Promise<void> {
+  const pc = peerConnection;
+  if (!pc) throw new Error("Peer connection is not ready");
+
+  await window.pairpair.setSelectedSource(sourceId);
+  const maxDim = qualityPreset ? Math.max(qualityPreset.width, qualityPreset.height) : 1920;
+  localStream = await navigator.mediaDevices.getDisplayMedia({
+    video: {
+      width: { max: maxDim },
+      height: { max: maxDim },
+      frameRate: { ideal: qualityPreset?.fps ?? 30 },
+    },
+  });
+
+  localStream.getVideoTracks().forEach((track) => {
+    (track as MediaStreamTrack & { contentHint: string }).contentHint = "detail";
+    pc.addTransceiver(track, {
+      direction: "sendonly",
+      streams: [localStream!],
+      sendEncodings: [{
+        maxBitrate: (qualityPreset?.bitrateMbps ?? 5) * 1_000_000,
+        maxFramerate: qualityPreset?.fps ?? 30,
+        priority: "high",
+      } as RTCRtpEncodingParameters],
+    });
+  });
+  localStream.getAudioTracks().forEach((track) => {
+    pc.addTrack(track, localStream!);
+  });
+
+  const videoCaps = RTCRtpSender.getCapabilities?.("video");
+  if (videoCaps) {
+    const preferred = ["video/vp9", "video/h264", "video/vp8"];
+    const sortedCodecs = [
+      ...preferred.flatMap((mime) => videoCaps.codecs.filter((c) => c.mimeType.toLowerCase() === mime)),
+      ...videoCaps.codecs.filter((c) => !preferred.includes(c.mimeType.toLowerCase())),
+    ];
+    pc.getTransceivers()
+      .filter((t) => t.sender.track?.kind === "video")
+      .forEach((t) => {
+        try { t.setCodecPreferences(sortedCodecs); } catch { /* unsupported */ }
+      });
+  }
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  signalingClient.send({ type: "rtc.offer", payload: { sdp: offer.sdp ?? "" } });
+}
+
+export function markPeerAuthenticated(): void {
+  peerAuthenticated = true;
 }
 
 export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> {
@@ -284,6 +262,7 @@ export function closePeerConnection(): void {
   }
   peerConnection?.close();
   peerConnection = null;
+  peerAuthenticated = false;
 }
 
 export function getPeerConnection(): RTCPeerConnection | null {

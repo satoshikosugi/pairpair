@@ -10,9 +10,11 @@ interface ScreenSource {
 
 interface ScreenSourcePickerProps {
   onSelect: (source: ScreenSource) => void;
+  initialSourceName?: string | null;
+  initialDisplayId?: string | null;
 }
 
-export function ScreenSourcePicker({ onSelect }: ScreenSourcePickerProps): React.ReactElement {
+export function ScreenSourcePicker({ onSelect, initialSourceName, initialDisplayId }: ScreenSourcePickerProps): React.ReactElement {
   const [sources, setSources] = useState<ScreenSource[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,13 +25,21 @@ export function ScreenSourcePicker({ onSelect }: ScreenSourcePickerProps): React
       .getScreenSources()
       .then((srcs) => {
         setSources(srcs);
+        const previous = srcs.find((source) =>
+          source.name === initialSourceName &&
+          (!initialDisplayId || source.display_id === initialDisplayId),
+        );
+        if (previous) {
+          setSelected(previous.id);
+          onSelect(previous);
+        }
         setLoading(false);
       })
       .catch((err: unknown) => {
         setError(String(err));
         setLoading(false);
       });
-  }, []);
+  }, [initialDisplayId, initialSourceName, onSelect]);
 
   if (loading) return <div style={{ padding: 16 }}>画面ソースを取得中...</div>;
   if (error) return <div style={{ padding: 16, color: "#f66" }}>エラー: {error}</div>;

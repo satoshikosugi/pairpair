@@ -18,6 +18,7 @@ let lastRemoteInputAt = 0;
 let nativeInputModule: NativeInputModule | null = null;
 let nativeInputLoadAttempted = false;
 let nativeInputLoadError: string | null = null;
+let targetWindowId: string | null = null;
 
 interface NativeInputModule {
   moveMouse(x: number, y: number): void;
@@ -26,6 +27,7 @@ interface NativeInputModule {
   keyDown(vkCode: number): void;
   keyUp(vkCode: number): void;
   typeText(text: string): void;
+  focusWindow?(windowId: string): void;
 }
 
 function getNativeBinaryName(): string | null {
@@ -98,6 +100,10 @@ function getNativeInputModule(): NativeInputModule | null {
 
 export function setCaptureArea(area: CaptureArea): void {
   currentCaptureArea = area;
+}
+
+export function setTargetWindowId(windowId: string | null): void {
+  targetWindowId = windowId;
 }
 
 export function getLastRemoteInputAt(): number {
@@ -179,6 +185,9 @@ export function injectInputEvent(event: InputEvent): boolean {
 
   try {
     lastRemoteInputAt = Date.now();
+    if (targetWindowId && event.type !== "mouse.move") {
+      nativeInput.focusWindow?.(targetWindowId);
+    }
     switch (event.type) {
       case "mouse.move": {
         const { x, y } = normalizedToScreen(event.x, event.y, area);

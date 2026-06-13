@@ -88,6 +88,9 @@ GCP Deploy: Signaling Server
 
 # カスタム Project ID で実行
 ./gcp-deploy.ps1 -ProjectId "my-project" -Region "us-central1" -ServiceName "my-service"
+
+# デプロイ後に直近ログも表示
+./gcp-deploy.ps1 -ShowLogs
 ```
 
 ### 方法 3: 環境変数を上書き

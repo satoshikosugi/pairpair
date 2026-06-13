@@ -70,7 +70,7 @@ export function SessionPage(): React.ReactElement {
     adaptiveModeActive,
     adaptiveBasePreset,
   } = useSessionStore();
-  const { pairproProfiles } = useSettingsStore();
+  const { pairproProfiles, wheelDirection, saveToElectron } = useSettingsStore();
 
   const [stats, setStats] = useState<WebRTCStats>({});
   const [showStats, setShowStats] = useState(false);
@@ -779,9 +779,13 @@ export function SessionPage(): React.ReactElement {
             color={markerColor}
             width={markerWidth}
             displayMode={displayMode}
+            wheelDirection={wheelDirection}
             onToggle={() => setMarkerEnabled((prev) => !prev)}
             onEnable={() => setMarkerEnabled(true)}
             onDisplayModeChange={setDisplayMode}
+            onWheelDirectionChange={(direction) => {
+              void saveToElectron("wheelDirection", direction);
+            }}
             onColorChange={setMarkerColor}
             onWidthChange={setMarkerWidth}
             onUndo={handleUndoAnnotation}
@@ -816,6 +820,7 @@ export function SessionPage(): React.ReactElement {
         onHoverPreview={handleHoverPreview}
         fullscreen={fullscreen}
         displayMode={displayMode}
+        wheelDirection={wheelDirection}
       />
 
       {fullscreen && fullscreenHintVisible && (

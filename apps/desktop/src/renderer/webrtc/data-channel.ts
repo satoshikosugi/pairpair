@@ -3,6 +3,7 @@ import type { ControlMessage, InputEvent } from "@pairpair/shared";
 type ControlMessageHandler = (message: ControlMessage) => void;
 type InputMessageHandler = (message: InputEvent) => void;
 type SessionEndedHandler = () => void;
+type ControlOpenHandler = () => void;
 
 export class DataChannelManager {
   private controlChannel: RTCDataChannel | null = null;
@@ -11,6 +12,7 @@ export class DataChannelManager {
   private controlHandlers: ControlMessageHandler[] = [];
   private inputHandlers: InputMessageHandler[] = [];
   private sessionEndedHandlers: SessionEndedHandler[] = [];
+  private controlOpenHandlers: ControlOpenHandler[] = [];
 
   setupAsHost(pc: RTCPeerConnection): void {
     this.controlChannel = pc.createDataChannel("control", { ordered: true });
@@ -39,6 +41,9 @@ export class DataChannelManager {
   }
 
   private setupControlChannel(channel: RTCDataChannel): void {
+    channel.onopen = () => {
+      this.controlOpenHandlers.forEach((h) => h());
+    };
     channel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data as string) as ControlMessage;
@@ -103,6 +108,18 @@ export class DataChannelManager {
     this.sessionEndedHandlers.push(handler);
   }
 
+  onControlOpen(handler: ControlOpenHandler): void {
+    if (this.controlChannel?.readyState === "open") {
+      handler();
+      return;
+    }
+    this.controlOpenHandlers.push(handler);
+  }
+
+  offControlOpen(handler: ControlOpenHandler): void {
+    this.controlOpenHandlers = this.controlOpenHandlers.filter((h) => h !== handler);
+  }
+
   close(): void {
     this.controlChannel?.close();
     this.inputChannel?.close();
@@ -110,6 +127,7 @@ export class DataChannelManager {
     this.controlHandlers = [];
     this.inputHandlers = [];
     this.sessionEndedHandlers = [];
+    this.controlOpenHandlers = [];
   }
 
   get isReady(): boolean {

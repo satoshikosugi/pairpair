@@ -12,6 +12,13 @@ const store = new Store({
     saveLastSettings: true,
     logEnabled: true,
     requirePermissionConfirm: true,
+    wheelDirection: "standard",
+    lastSourceName: null,
+    lastSourceDisplayId: null,
+    lastHostPreset: "Balanced",
+    lastHostCustomPreset: {},
+    lastHostAdaptiveMode: false,
+    lastHostAdaptiveBasePreset: "Balanced",
   },
 });
 

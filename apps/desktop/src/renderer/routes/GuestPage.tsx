@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
 import { signalingClient } from "../webrtc/signaling-client";
 import { createPeerConnectionAsGuest, handleOffer, handleIce } from "../webrtc/rtc-client";
+import { guestPeerAuthenticator } from "../webrtc/peer-auth";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
@@ -10,7 +11,19 @@ export function GuestPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
   const { setSessionId, setRole, setHostDeviceName } = useSessionStore();
   const [code, setCode] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [requiresPassphrase, setRequiresPassphrase] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+  const passphraseInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (requiresPassphrase) {
+      passphraseInputRef.current?.focus();
+    } else {
+      codeInputRef.current?.focus();
+    }
+  }, [requiresPassphrase]);
 
   const handleConnect = async () => {
     const cleanCode = code.replace(/\s/g, "");
@@ -48,6 +61,20 @@ export function GuestPage(): React.ReactElement {
       signalingClient.connect(data.wsUrl, data.sessionId, data.guestToken, "guest");
 
       await createPeerConnectionAsGuest();
+      guestPeerAuthenticator.start(
+        cleanCode,
+        () => setRequiresPassphrase(true),
+        () => navigate("guest-session"),
+        (reason) => {
+          if (reason === "invalid_passphrase") {
+            setPassphrase("");
+            setRequiresPassphrase(true);
+            setError("あいことばが一致しません");
+          } else {
+            setError(`P2P認証に失敗しました: ${reason}`);
+          }
+        },
+      );
 
       signalingClient.on("rtc.offer", (msg) => {
         const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
@@ -59,11 +86,23 @@ export function GuestPage(): React.ReactElement {
         void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
       });
 
-      signalingClient.on("guest.registered", () => {
-        navigate("guest-session");
-      });
     } catch (err) {
       setError(String(err));
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleSubmitPassphrase = async () => {
+    if (!passphrase) {
+      setError("あいことばを入力してください");
+      return;
+    }
+    setConnecting(true);
+    try {
+      await guestPeerAuthenticator.submitPassphrase(passphrase);
+    } catch (err) {
+      setError(`P2P認証開始失敗: ${String(err)}`);
     } finally {
       setConnecting(false);
     }
@@ -86,6 +125,7 @@ export function GuestPage(): React.ReactElement {
       </p>
 
       <input
+        ref={codeInputRef}
         type="text"
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/[^\d\s]/g, ""))}
@@ -107,9 +147,32 @@ export function GuestPage(): React.ReactElement {
         }}
       />
 
+      {requiresPassphrase && (
+        <input
+          ref={passphraseInputRef}
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          placeholder="あいことば"
+          maxLength={100}
+          style={{
+            padding: "10px 14px",
+            fontSize: 16,
+            background: "#2a2a3e",
+            border: "2px solid #444",
+            color: "#fff",
+            borderRadius: 8,
+            width: 220,
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void handleSubmitPassphrase();
+          }}
+        />
+      )}
+
       <button
         onClick={() => {
-          void handleConnect();
+          void (requiresPassphrase ? handleSubmitPassphrase() : handleConnect());
         }}
         disabled={connecting}
         style={{
@@ -121,7 +184,7 @@ export function GuestPage(): React.ReactElement {
           fontSize: 16,
         }}
       >
-        {connecting ? "接続中..." : "接続"}
+        {connecting ? "接続中..." : requiresPassphrase ? "あいことばを照合" : "接続"}
       </button>
 
       <div style={{ color: "#888", fontSize: 12, textAlign: "center" }}>

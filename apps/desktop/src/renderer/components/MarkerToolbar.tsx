@@ -5,9 +5,11 @@ interface MarkerToolbarProps {
   color: string;
   width: number;
   displayMode: "fit" | "native";
+  wheelDirection: "standard" | "natural";
   onToggle: () => void;
   onEnable: () => void;
   onDisplayModeChange: (mode: "fit" | "native") => void;
+  onWheelDirectionChange: (direction: "standard" | "natural") => void;
   onColorChange: (color: string) => void;
   onWidthChange: (width: number) => void;
   onUndo: () => void;
@@ -25,9 +27,11 @@ export function MarkerToolbar({
   color,
   width,
   displayMode,
+  wheelDirection,
   onToggle,
   onEnable,
   onDisplayModeChange,
+  onWheelDirectionChange,
   onColorChange,
   onWidthChange,
   onUndo,
@@ -63,6 +67,12 @@ export function MarkerToolbar({
           等倍
         </button>
       </div>
+      <button
+        onClick={() => onWheelDirectionChange(wheelDirection === "standard" ? "natural" : "standard")}
+        style={ghostButtonStyle}
+      >
+        ホイール: {wheelDirection === "standard" ? "Windows" : "Mac"}
+      </button>
       <button
         onClick={onToggle}
         style={{

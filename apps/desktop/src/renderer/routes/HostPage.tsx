@@ -6,8 +6,9 @@ import { useSettingsStore } from "../store/settings-store";
 import { ScreenSourcePicker } from "../components/ScreenSourcePicker";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
 import { signalingClient } from "../webrtc/signaling-client";
-import { createPeerConnectionAsHost, applyQualityPreset, setAdaptiveParameters, getLocalStreamResolution } from "../webrtc/rtc-client";
+import { createPeerConnectionAsHost, startHostScreenShare, markPeerAuthenticated, closePeerConnection, applyQualityPreset, setAdaptiveParameters, getLocalStreamResolution } from "../webrtc/rtc-client";
 import { dataChannelManager } from "../webrtc/data-channel";
+import { hostPeerAuthenticator } from "../webrtc/peer-auth";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import type { InputEvent } from "@pairpair/shared";
@@ -25,18 +26,27 @@ const STATE_LABEL: Record<string, string> = {
 export function HostPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
   const { setSessionId, setCode, setRole, setExpiresAt, setGuestDeviceName, code, expiresAt } = useSessionStore();
-  const { defaultPreset, pairproProfiles } = useSettingsStore();
+  const settings = useSettingsStore();
+  const { pairproProfiles } = settings;
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(defaultPreset);
-  const [customPreset, setCustomPreset] = useState<Partial<QualityPreset>>({});
+  const [selectedSource, setSelectedSource] = useState<ScreenSource | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(settings.lastHostPreset ?? settings.defaultPreset);
+  const [customPreset, setCustomPreset] = useState<Partial<QualityPreset>>(settings.lastHostCustomPreset as Partial<QualityPreset>);
   const [creating, setCreating] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600);
   const [copied, setCopied] = useState(false);
-  const [adaptiveMode, setAdaptiveMode] = useState(false);
+  const [adaptiveMode, setAdaptiveMode] = useState(settings.lastHostAdaptiveMode);
   const [adaptiveState, setAdaptiveState] = useState(adaptiveQualityController.state);
-  const [adaptiveBasePreset, setAdaptiveBasePreset] = useState<Exclude<QualityPresetName, "Custom">>("Balanced");
+  const [adaptiveBasePreset, setAdaptiveBasePreset] = useState<Exclude<QualityPresetName, "Custom">>(
+    settings.lastHostAdaptiveBasePreset === "Custom" ? "Balanced" : settings.lastHostAdaptiveBasePreset as Exclude<QualityPresetName, "Custom">,
+  );
+  const [passphrase, setPassphrase] = useState("");
   const adaptiveInputHandlerRef = useRef<((e: InputEvent) => void) | null>(null);
+  const handleSourceSelect = useCallback((source: ScreenSource) => {
+    setSelectedSource(source);
+    setSelectedSourceId(source.id);
+  }, []);
 
   useEffect(() => {
     if (!waiting || !expiresAt) return;
@@ -133,11 +143,21 @@ export function HostPage(): React.ReactElement {
       setCode(data.code);
       setRole("host");
       setExpiresAt(data.expiresAt);
+      await hostPeerAuthenticator.prepare(data.code, passphrase.trim());
+      if (selectedSource) {
+        void settings.saveToElectron("lastSourceName", selectedSource.name);
+        void settings.saveToElectron("lastSourceDisplayId", selectedSource.display_id);
+      }
+      void settings.saveToElectron("lastHostPreset", selectedPreset);
+      void settings.saveToElectron("lastHostCustomPreset", customPreset);
+      void settings.saveToElectron("lastHostAdaptiveMode", adaptiveMode);
+      void settings.saveToElectron("lastHostAdaptiveBasePreset", adaptiveBasePreset);
 
       signalingClient.connect(data.wsUrl, data.sessionId, data.hostToken, "host");
 
       signalingClient.on("guest.joined", (msg) => {
-        const guestName = (msg.payload as { guestDeviceName?: string })?.guestDeviceName ?? "Guest";
+        const payload = msg.payload as { guestDeviceName?: string };
+        const guestName = payload.guestDeviceName ?? "Guest";
         setGuestDeviceName(guestName);
 
         // Get the current quality preset to pass to the peer connection
@@ -152,16 +172,29 @@ export function HostPage(): React.ReactElement {
           useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
         }
 
-        // Pass base preset to createPeerConnectionAsHost so resolution is set at connection time
         const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveBasePreset] : undefined;
-        void createPeerConnectionAsHost(selectedSourceId, adaptiveMode ? adaptivePreset : currentPreset)
+        void createPeerConnectionAsHost()
           .then(() => {
+            hostPeerAuthenticator.start(
+              () => {
+                markPeerAuthenticated();
+                void startHostScreenShare(selectedSourceId, adaptiveMode ? adaptivePreset : currentPreset)
+                  .then(() => {
+                    if (adaptiveMode) enableAdaptive();
+                    navigate("host-session");
+                  })
+                  .catch((err) => setError(`画面共有開始失敗: ${String(err)}`));
+              },
+              (reason) => {
+                closePeerConnection();
+                setError(`P2P認証に失敗しました: ${reason}`);
+              },
+            );
             if (adaptiveMode) {
-              enableAdaptive();
+              useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
             }
           })
-          .catch(console.error);
-        navigate("host-session");
+          .catch((err) => setError(`P2P認証接続失敗: ${String(err)}`));
       });
 
       signalingClient.on("rtc.answer", (msg) => {
@@ -281,7 +314,11 @@ export function HostPage(): React.ReactElement {
       <h2 style={{ marginBottom: 24, color: "#4a9eff" }}>ホストとして開始</h2>
 
       <div style={{ marginBottom: 24 }}>
-        <ScreenSourcePicker onSelect={(src) => setSelectedSourceId(src.id)} />
+        <ScreenSourcePicker
+          onSelect={handleSourceSelect}
+          initialSourceName={settings.lastSourceName}
+          initialDisplayId={settings.lastSourceDisplayId}
+        />
       </div>
 
       <div style={{ marginBottom: 24 }}>
@@ -375,6 +412,18 @@ export function HostPage(): React.ReactElement {
             </table>
           </div>
         )}
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ marginBottom: 12 }}>あいことば（任意）</h3>
+        <input
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          maxLength={100}
+          placeholder="未指定ならコードだけで参加できます"
+          style={{ width: "100%", padding: "9px 12px", background: "#2a2a3e", color: "#fff", border: "1px solid #444", borderRadius: 6 }}
+        />
       </div>
 
       <div style={{ display: "flex", gap: 12 }}>

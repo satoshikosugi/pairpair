@@ -1,8 +1,25 @@
 #[cfg(target_os = "windows")]
 use windows::{
+  Win32::Foundation::HWND,
   Win32::UI::Input::KeyboardAndMouse::*,
-  Win32::UI::WindowsAndMessaging::SetCursorPos,
+  Win32::UI::WindowsAndMessaging::{
+    BringWindowToTop, IsIconic, SetCursorPos, SetForegroundWindow, ShowWindow, SW_RESTORE,
+  },
 };
+
+pub fn focus_window(window_id: &str) {
+  let Ok(raw_handle) = window_id.parse::<isize>() else {
+    return;
+  };
+  let hwnd = HWND(raw_handle);
+  unsafe {
+    if IsIconic(hwnd).as_bool() {
+      let _ = ShowWindow(hwnd, SW_RESTORE);
+    }
+    let _ = BringWindowToTop(hwnd);
+    let _ = SetForegroundWindow(hwnd);
+  }
+}
 
 pub fn move_mouse(x: i32, y: i32) {
   unsafe {

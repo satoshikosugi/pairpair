@@ -56,6 +56,36 @@ export interface SessionEndedMessage {
   type: "session.ended";
 }
 
+export interface AuthHelloMessage {
+  type: "auth.hello";
+  code: string;
+}
+
+export interface AuthRequiredMessage {
+  type: "auth.required";
+}
+
+export interface AuthKe1Message {
+  type: "auth.ke1";
+  payload: number[];
+}
+
+export interface AuthKe2Message {
+  type: "auth.ke2";
+  payload: number[];
+}
+
+export interface AuthKe3Message {
+  type: "auth.ke3";
+  payload: number[];
+}
+
+export interface AuthResultMessage {
+  type: "auth.result";
+  success: boolean;
+  reason?: "invalid_code" | "invalid_passphrase" | "protocol_error";
+}
+
 export interface AnnotationStrokeBeginMessage {
   type: "annotation.stroke.begin";
   stroke: Omit<AnnotationStroke, "points">;
@@ -98,6 +128,12 @@ export type ControlMessage =
   | StatsReportMessage
   | InputLatencyMessage
   | SessionEndedMessage
+  | AuthHelloMessage
+  | AuthRequiredMessage
+  | AuthKe1Message
+  | AuthKe2Message
+  | AuthKe3Message
+  | AuthResultMessage
   | AnnotationStrokeBeginMessage
   | AnnotationStrokeAppendMessage
   | AnnotationStrokeEndMessage

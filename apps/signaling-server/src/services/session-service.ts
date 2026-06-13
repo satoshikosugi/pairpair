@@ -10,7 +10,7 @@ function generateToken(): string {
 export async function createHostSession(
   deviceName: string,
   platform: string,
-  appVersion: string
+  appVersion: string,
 ): Promise<{ sessionId: string; code: string; hostToken: string; expiresAt: string }> {
   const sessionId = uuidv4();
   const hostToken = generateToken();
@@ -41,7 +41,7 @@ export async function guestJoin(
   code: string,
   deviceName: string,
   platform: string,
-  appVersion: string
+  appVersion: string,
 ): Promise<{ sessionId: string; guestToken: string; hostDeviceName: string }> {
   const sessionData = sessionStore.getByCode(code);
   if (!sessionData) {

@@ -15,8 +15,9 @@ COPY apps/signaling-server ./apps/signaling-server
 # Install pnpm
 RUN npm install -g pnpm@11.5.3
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install only signaling-server dependencies. Installing the whole workspace also
+# pulls the desktop-only canvas package, whose native build is not needed here.
+RUN pnpm install --filter=@pairpair/signaling-server --frozen-lockfile
 
 # Build the application
 RUN pnpm --filter=@pairpair/signaling-server build

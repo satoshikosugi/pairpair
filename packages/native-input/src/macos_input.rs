@@ -1,6 +1,10 @@
 use core_graphics::event::{CGEvent, CGEventTapLocation};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
+pub fn focus_window(_window_id: &str) {
+  // Window activation requires an application-level accessibility implementation.
+}
+
 pub fn move_mouse(_x: i32, _y: i32) {
   // TODO: Phase 4 - CGEventCreateMouseEvent + CGEventPost
 }

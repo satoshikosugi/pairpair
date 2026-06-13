@@ -12,6 +12,13 @@ interface SettingsState {
   logEnabled: boolean;
   requirePermissionConfirm: boolean;
   adaptiveModeEnabled: boolean;
+  wheelDirection: "standard" | "natural";
+  lastSourceName: string | null;
+  lastSourceDisplayId: string | null;
+  lastHostPreset: QualityPresetName;
+  lastHostCustomPreset: Record<string, unknown>;
+  lastHostAdaptiveMode: boolean;
+  lastHostAdaptiveBasePreset: QualityPresetName;
   pairproProfiles: Record<PairProActivityState, PairProProfile>;
   loaded: boolean;
 
@@ -36,6 +43,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   logEnabled: true,
   requirePermissionConfirm: true,
   adaptiveModeEnabled: false,
+  wheelDirection: "standard",
+  lastSourceName: null,
+  lastSourceDisplayId: null,
+  lastHostPreset: "Balanced",
+  lastHostCustomPreset: {},
+  lastHostAdaptiveMode: false,
+  lastHostAdaptiveBasePreset: "Balanced",
   pairproProfiles: { ...PAIRPRO_DEFAULT_PROFILES },
   loaded: false,
 
@@ -70,6 +84,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         logEnabled: (settings.logEnabled as boolean) ?? true,
         requirePermissionConfirm: (settings.requirePermissionConfirm as boolean) ?? true,
         adaptiveModeEnabled: (settings.adaptiveModeEnabled as boolean) ?? false,
+        wheelDirection: (settings.wheelDirection as "standard" | "natural") ?? "standard",
+        lastSourceName: (settings.lastSourceName as string | null) ?? null,
+        lastSourceDisplayId: (settings.lastSourceDisplayId as string | null) ?? null,
+        lastHostPreset: (settings.lastHostPreset as QualityPresetName) ?? "Balanced",
+        lastHostCustomPreset: (settings.lastHostCustomPreset as Record<string, unknown>) ?? {},
+        lastHostAdaptiveMode: (settings.lastHostAdaptiveMode as boolean) ?? false,
+        lastHostAdaptiveBasePreset: (settings.lastHostAdaptiveBasePreset as QualityPresetName) ?? "Balanced",
         pairproProfiles: (() => {
           const raw = settings.pairproProfiles as Record<string, Record<string, unknown>> | undefined;
           if (raw && typeof raw === "object") {

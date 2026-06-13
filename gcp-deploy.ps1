@@ -4,7 +4,8 @@
 param(
     [string]$ProjectId = "",
     [string]$Region = "",
-    [string]$ServiceName = ""
+    [string]$ServiceName = "",
+    [switch]$ShowLogs
 )
 
 # Set defaults from environment variables or fallback values
@@ -164,9 +165,8 @@ Write-Host "WebSocket URL:    $finalWsUrl"
 Write-Host "API Endpoint:     $finalServiceUrl/api/health"
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Optional: Show logs
-$showLogs = Read-Host "Show recent logs? (y/n)"
-if ($showLogs -eq "y") {
+# Optional: Show logs without blocking automated/VS Code task execution
+if ($ShowLogs) {
     Write-Host ""
     Write-Status "Showing recent logs..."
     gcloud run logs read $ServiceName --platform managed --region $Region --limit 50

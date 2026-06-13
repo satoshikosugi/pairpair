@@ -13,6 +13,7 @@ export interface NativeInputModule {
 }
 
 declare const require: (id: string) => unknown;
+declare const __dirname: string;
 declare const process:
   | {
     versions?: { electron?: string };
@@ -25,47 +26,58 @@ declare const process:
 let nativeModule: NativeInputModule | null = null;
 let attemptedLoad = false;
 
-function getPackagedBinaryPath(): string | null {
-  if (typeof process === "undefined" || !process.versions?.electron) return null;
+function getBinaryName(): string | null {
+  if (typeof process === "undefined") return null;
+  const { arch, platform } = process;
+  if (platform === "win32") {
+    if (arch === "x64") return "index.win32-x64-msvc.node";
+    if (arch === "ia32") return "index.win32-ia32-msvc.node";
+    if (arch === "arm64") return "index.win32-arm64-msvc.node";
+  }
+  if (platform === "darwin") {
+    if (arch === "x64") return "index.darwin-x64.node";
+    if (arch === "arm64") return "index.darwin-arm64.node";
+  }
+  return null;
+}
 
-  const { arch, platform, resourcesPath } = process;
-  if (!resourcesPath) return null;
+function getCandidatePaths(): string[] {
+  const binaryName = getBinaryName();
+  if (!binaryName) return [];
 
-  const binaryName = (() => {
-    if (platform === "win32") {
-      if (arch === "x64") return "index.win32-x64-msvc.node";
-      if (arch === "ia32") return "index.win32-ia32-msvc.node";
-      if (arch === "arm64") return "index.win32-arm64-msvc.node";
-    }
-    if (platform === "darwin") {
-      if (arch === "x64") return "index.darwin-x64.node";
-      if (arch === "arm64") return "index.darwin-arm64.node";
-    }
-    return null;
-  })();
+  const candidates = [`${__dirname}/../${binaryName}`];
 
-  if (!binaryName) return null;
-  return `${resourcesPath}/native-input/${binaryName}`;
+  if (typeof process !== "undefined" && process.versions?.electron && process.resourcesPath) {
+    candidates.push(`${process.resourcesPath}/native-input/${binaryName}`);
+  }
+
+  return candidates;
 }
 
 function loadNativeModule(): NativeInputModule | null {
+  const errors: unknown[] = [];
+
+  for (const candidatePath of getCandidatePaths()) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const addon = require(candidatePath);
+      return addon as NativeInputModule;
+    } catch (err) {
+      errors.push({ candidatePath, err });
+    }
+  }
+
   try {
-    // Load the napi-rs generated binding at package root (index.win32-x64-msvc.node etc.)
+    // Fallback to the generated package root loader for environments we do not enumerate above.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const addon = require("../index.js");
     return addon as NativeInputModule;
   } catch (rootError) {
-    const packagedBinaryPath = getPackagedBinaryPath();
-    if (packagedBinaryPath) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const addon = require(packagedBinaryPath);
-        return addon as NativeInputModule;
-      } catch (packagedError) {
-        console.warn("[native-input] Failed to load packaged native addon:", packagedError);
-      }
+    errors.push({ candidatePath: "../index.js", err: rootError });
+    for (const entry of errors) {
+      console.warn("[native-input] Native addon load failure:", entry);
     }
-    console.warn("[native-input] Native addon not available, using stub:", rootError);
+    console.warn("[native-input] Native addon not available, using stub");
     return null;
   }
 }

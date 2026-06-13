@@ -65,8 +65,8 @@ export const PERMISSION_PRESETS: Record<PermissionPresetId, PermissionPreset> = 
   fullControl: {
     id: "fullControl",
     label: "フルコントロール",
-    summary: "マウス、ホイール、キーボード、注釈を許可します",
-    permissions: { mouseMove: true, mouseClick: true, mouseWheel: true, keyboard: true, clipboard: false, annotation: true },
+    summary: "マウス、ホイール、キーボード、クリップボード、注釈を許可します",
+    permissions: { mouseMove: true, mouseClick: true, mouseWheel: true, keyboard: true, clipboard: true, annotation: true },
   },
 };
 

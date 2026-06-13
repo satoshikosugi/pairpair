@@ -28,7 +28,7 @@ interface RemoteVideoViewProps {
   onMarkerMove: (point: AnnotationPoint) => void;
   onMarkerEnd: () => void;
   onHoverPreview: (point: AnnotationPoint | null) => void;
-  onPointerPosition?: (point: AnnotationPoint) => void;
+  onSpotlight?: (point: AnnotationPoint) => void;
   fullscreen: boolean;
   displayMode: "fit" | "native";
   wheelDirection: "standard" | "natural";
@@ -46,7 +46,7 @@ export function RemoteVideoView({
   onMarkerMove,
   onMarkerEnd,
   onHoverPreview,
-  onPointerPosition,
+  onSpotlight,
   fullscreen,
   displayMode,
   wheelDirection,
@@ -147,7 +147,6 @@ export function RemoteVideoView({
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
-      onPointerPosition?.(point);
 
       if (markerEnabled && isDrawingRef.current) {
         onMarkerMove(point);
@@ -187,11 +186,21 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerMove, onPointerPosition, sessionPermissions.mouseMove, adaptiveMode]
+    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerMove, sessionPermissions.mouseMove, adaptiveMode]
   );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
+      const point = getPoint(e.clientX, e.clientY);
+      if (!point) return;
+
+      if (e.button === 2 && e.ctrlKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        onSpotlight?.(point);
+        return;
+      }
+
       // Right-click pan mode (for native/scaled views with overflow)
       if (e.button === 2 && !fitToViewport) {
         const container = containerRef.current;
@@ -207,10 +216,6 @@ export function RemoteVideoView({
           return;
         }
       }
-
-      const point = getPoint(e.clientX, e.clientY);
-      if (!point) return;
-      onPointerPosition?.(point);
 
       if (markerEnabled) {
         isDrawingRef.current = true;
@@ -229,7 +234,7 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onMarkerStart, onPointerPosition, fitToViewport, sessionPermissions.mouseClick, adaptiveMode]
+    [canControl, fitToViewport, getPoint, markerEnabled, onMarkerStart, onSpotlight, sessionPermissions.mouseClick, adaptiveMode]
   );
 
   const handleClick = useCallback(
@@ -247,13 +252,12 @@ export function RemoteVideoView({
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
-      onPointerPosition?.(point);
 
       useSessionStore.getState().setControlState("controlAllowed");
       dataChannelManager.sendControl({ type: "remoteControl.grabbed" });
       onHoverPreview(null);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onPointerPosition, sessionPermissions.keyboard, sessionPermissions.mouseClick, sessionPermissions.mouseMove, sessionPermissions.mouseWheel],
+    [canControl, getPoint, markerEnabled, onHoverPreview, sessionPermissions.keyboard, sessionPermissions.mouseClick, sessionPermissions.mouseMove, sessionPermissions.mouseWheel],
   );
 
   const handleMouseUp = useCallback(
@@ -267,7 +271,6 @@ export function RemoteVideoView({
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
-      onPointerPosition?.(point);
 
       if (markerEnabled && isDrawingRef.current) {
         isDrawingRef.current = false;
@@ -284,7 +287,7 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onMarkerEnd, onPointerPosition, sessionPermissions.mouseClick, adaptiveMode]
+    [canControl, getPoint, markerEnabled, onMarkerEnd, sessionPermissions.mouseClick, adaptiveMode]
   );
 
   const handleWheel = useCallback(
@@ -292,7 +295,6 @@ export function RemoteVideoView({
       if (!canControl || markerEnabled || !sessionPermissions.mouseWheel) return;
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
-      onPointerPosition?.(point);
 
       e.preventDefault();
       const event: MouseWheelEvent = {
@@ -307,7 +309,7 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onPointerPosition, sessionPermissions.mouseWheel, wheelDirection, adaptiveMode]
+    [canControl, getPoint, markerEnabled, sessionPermissions.mouseWheel, wheelDirection, adaptiveMode]
   );
 
   const handleMouseLeave = useCallback(() => {

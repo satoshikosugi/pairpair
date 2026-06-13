@@ -131,6 +131,7 @@ export function SessionPage(): React.ReactElement {
     adaptiveBasePreset,
     sessionPermissions,
     clipboardHistory,
+    clipboardSyncMode,
   } = useSessionStore();
   const { pairproProfiles, wheelDirection, saveToElectron } = useSettingsStore();
 
@@ -171,7 +172,6 @@ export function SessionPage(): React.ReactElement {
   const annotationsRef = useRef<AnnotationStroke[]>([]);
   const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
   const spotlightRef = useRef<SpotlightIndicator | null>(null);
-  const lastPointerPointRef = useRef<AnnotationPoint | null>(null);
   const toolboxDragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const toolboxElementRef = useRef<HTMLDivElement | null>(null);
   const pendingRoleSwitchSourceRef = useRef<ScreenSource | null>(null);
@@ -186,6 +186,9 @@ export function SessionPage(): React.ReactElement {
   const fullscreenRequestPendingRef = useRef(false);
   const fullscreenRequestTimerRef = useRef<number | null>(null);
   const spotlightTimerRef = useRef<number | null>(null);
+  const clipboardPollTimerRef = useRef<number | null>(null);
+  const lastClipboardTextRef = useRef<string | null>(null);
+  const lastAppliedRemoteClipboardRef = useRef<string | null>(null);
 
   const STATE_LABEL: Record<string, string> = {
     idle: "アイドル",
@@ -704,39 +707,55 @@ export function SessionPage(): React.ReactElement {
     dataChannelManager.sendControl({ type: "guest.cursor", cursor });
   }, [controlState]);
 
-  const sendClipboardText = useCallback((text: string) => {
+  const pushClipboardHistoryEntry = useCallback((entry: { text: string; direction: "sent" | "received"; peerRole: "host" | "guest"; timestamp: number }) => {
+    useSessionStore.getState().addClipboardHistoryEntry({
+      id: `${entry.timestamp}-${entry.direction}-${entry.peerRole}`,
+      text: entry.text,
+      direction: entry.direction,
+      peerRole: entry.peerRole,
+      createdAt: entry.timestamp,
+    });
+  }, []);
+
+  const shareClipboardText = useCallback((text: string) => {
     if (!text || !sessionPermissions.clipboard) return;
     const timestamp = Date.now();
-    const event: TextInputEvent = { type: "text.input", text };
-    if (adaptiveMode) {
-      adaptiveQualityController.onInputEvent(event);
-    }
-    dataChannelManager.sendInput(event);
+    lastClipboardTextRef.current = text;
     dataChannelManager.sendControl({
       type: "clipboard.snippet",
       text,
       senderRole: isHost ? "host" : "guest",
       timestamp,
     });
-    useSessionStore.getState().addClipboardHistoryEntry({
-      id: `${timestamp}-sent`,
+    pushClipboardHistoryEntry({
       text,
       direction: "sent",
       peerRole: isHost ? "guest" : "host",
-      createdAt: timestamp,
+      timestamp,
     });
-  }, [adaptiveMode, isHost, sessionPermissions.clipboard]);
+  }, [isHost, pushClipboardHistoryEntry, sessionPermissions.clipboard]);
+
+  const pasteClipboardText = useCallback((text: string) => {
+    if (!text || !sessionPermissions.clipboard || isHost) return;
+    const event: TextInputEvent = { type: "text.input", text };
+    if (adaptiveMode) {
+      adaptiveQualityController.onInputEvent(event);
+    }
+    dataChannelManager.sendInput(event);
+    shareClipboardText(text);
+  }, [adaptiveMode, isHost, sessionPermissions.clipboard, shareClipboardText]);
 
   const receiveClipboardText = useCallback((text: string) => {
+    lastClipboardTextRef.current = text;
+    lastAppliedRemoteClipboardRef.current = text;
     void navigator.clipboard.writeText(text).catch(console.error);
   }, []);
 
-  const sendSpotlight = useCallback(() => {
+  const sendSpotlight = useCallback((point: AnnotationPoint) => {
     if (isHost) return;
-    const cursor = lastPointerPointRef.current;
     const nextSpotlight: SpotlightIndicator = {
-      x: cursor?.x ?? 0.5,
-      y: cursor?.y ?? 0.5,
+      x: point.x,
+      y: point.y,
       label: "ここを見て",
       visible: true,
       timestamp: Date.now(),
@@ -1036,7 +1055,6 @@ export function SessionPage(): React.ReactElement {
       canUndo={sessionPermissions.annotation && annotations.length > 0}
       hasStrokes={sessionPermissions.annotation && annotations.length > 0}
       onToggleFullscreen={toggleGuestFullscreen}
-      onSpotlight={sendSpotlight}
       onToggleMinimized={() => setToolboxMinimized((prev) => !prev)}
       onReturnControl={handleReleaseControl}
       dragHandleProps={{ onPointerDown: handleToolboxDragStart }}
@@ -1146,13 +1164,46 @@ export function SessionPage(): React.ReactElement {
       const text = event.clipboardData?.getData("text/plain") ?? "";
       if (!text) return;
       event.preventDefault();
-      sendClipboardText(text);
+      pasteClipboardText(text);
     };
     document.addEventListener("paste", handlePaste, { capture: true });
     return () => {
       document.removeEventListener("paste", handlePaste, { capture: true });
     };
-  }, [isHost, sendClipboardText, sessionPermissions.clipboard]);
+  }, [isHost, pasteClipboardText, sessionPermissions.clipboard]);
+
+  useEffect(() => {
+    if (!sessionPermissions.clipboard || clipboardSyncMode !== "auto") {
+      if (clipboardPollTimerRef.current !== null) {
+        window.clearInterval(clipboardPollTimerRef.current);
+        clipboardPollTimerRef.current = null;
+      }
+      return;
+    }
+
+    const pollClipboard = () => {
+      void navigator.clipboard.readText().then((text) => {
+        if (!text.trim()) return;
+        if (text === lastClipboardTextRef.current) return;
+        lastClipboardTextRef.current = text;
+        if (text === lastAppliedRemoteClipboardRef.current) {
+          lastAppliedRemoteClipboardRef.current = null;
+          return;
+        }
+        shareClipboardText(text);
+      }).catch(() => undefined);
+    };
+
+    pollClipboard();
+    clipboardPollTimerRef.current = window.setInterval(pollClipboard, 1000);
+
+    return () => {
+      if (clipboardPollTimerRef.current !== null) {
+        window.clearInterval(clipboardPollTimerRef.current);
+        clipboardPollTimerRef.current = null;
+      }
+    };
+  }, [clipboardSyncMode, sessionPermissions.clipboard, shareClipboardText]);
 
   useEffect(() => {
     const handler = (message: ControlMessage) => {
@@ -1206,13 +1257,15 @@ export function SessionPage(): React.ReactElement {
           break;
         }
         case "clipboard.snippet": {
-          useSessionStore.getState().addClipboardHistoryEntry({
-            id: `${message.timestamp}-received`,
+          pushClipboardHistoryEntry({
             text: message.text,
             direction: "received",
             peerRole: message.senderRole,
-            createdAt: message.timestamp,
+            timestamp: message.timestamp,
           });
+          if (useSessionStore.getState().clipboardSyncMode === "auto") {
+            receiveClipboardText(message.text);
+          }
           break;
         }
         case "permission.profile.updated": {
@@ -1285,6 +1338,8 @@ export function SessionPage(): React.ReactElement {
     startRoleSwitchReadyRetry,
     reconnectAsGuestAfterRoleSwitch,
     reconnectAsHostAfterRoleSwitch,
+    receiveClipboardText,
+    pushClipboardHistoryEntry,
     setCursorWithTimeout,
     setSpotlightWithTimeout,
     setError,
@@ -1469,8 +1524,10 @@ export function SessionPage(): React.ReactElement {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-start",
             padding: 24,
+            minHeight: 0,
+            overflowY: "auto",
           }}
         >
           <div style={{ color: "#aaa", marginBottom: 8 }}>共有画面上に透明オーバーレイを表示中</div>
@@ -1732,6 +1789,7 @@ export function SessionPage(): React.ReactElement {
 
         <PermissionPanel
           role="host"
+          onSendClipboardText={shareClipboardText}
           clipboardHistory={clipboardHistory}
           onReceiveClipboardText={receiveClipboardText}
           onClearClipboardHistory={() => useSessionStore.getState().clearClipboardHistory()}
@@ -1792,9 +1850,7 @@ export function SessionPage(): React.ReactElement {
         onMarkerMove={appendMarkerStroke}
         onMarkerEnd={endMarkerStroke}
         onHoverPreview={handleHoverPreview}
-        onPointerPosition={(point) => {
-          lastPointerPointRef.current = point;
-        }}
+        onSpotlight={sendSpotlight}
         fullscreen={fullscreen}
         displayMode={displayMode}
         wheelDirection={wheelDirection}
@@ -1916,7 +1972,8 @@ export function SessionPage(): React.ReactElement {
       {!fullscreen && (
         <PermissionPanel
           role="guest"
-          onSendClipboardText={sendClipboardText}
+          onSendClipboardText={shareClipboardText}
+          onPasteClipboardText={pasteClipboardText}
           clipboardHistory={clipboardHistory}
           onReceiveClipboardText={receiveClipboardText}
           onClearClipboardHistory={() => useSessionStore.getState().clearClipboardHistory()}

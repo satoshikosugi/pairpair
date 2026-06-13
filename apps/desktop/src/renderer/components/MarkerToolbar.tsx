@@ -20,7 +20,6 @@ interface MarkerToolbarProps {
   canUndo: boolean;
   hasStrokes: boolean;
   onToggleFullscreen: () => void;
-  onSpotlight?: () => void;
   onToggleMinimized?: () => void;
   onReturnControl?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
@@ -49,7 +48,6 @@ export function MarkerToolbar({
   canUndo,
   hasStrokes,
   onToggleFullscreen,
-  onSpotlight,
   onToggleMinimized,
   onReturnControl,
   dragHandleProps,
@@ -165,13 +163,7 @@ export function MarkerToolbar({
               tooltip="スクロール方向を Windows 方式と Mac 方式で切り替える"
               onClick={() => onWheelDirectionChange(wheelDirection === "standard" ? "natural" : "standard")}
             />
-            {onSpotlight && (
-              <ToolbarButton
-                label="ここを見て"
-                tooltip="今見てほしい位置を相手の画面に強調表示する"
-                onClick={onSpotlight}
-              />
-            )}
+            <div style={hintPillStyle}>ここを見て (Ctrl + 右クリック)</div>
           </Section>
 
           <Section label="描画">
@@ -388,6 +380,19 @@ const swatchGroupStyle: React.CSSProperties = {
   padding: "4px",
   borderRadius: 12,
   background: "rgba(255,255,255,0.05)",
+};
+
+const hintPillStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "7px 11px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#d6e4f7",
+  fontSize: 12,
+  fontWeight: 600,
+  whiteSpace: "nowrap",
 };
 
 const tooltipWrapStyle: React.CSSProperties = {

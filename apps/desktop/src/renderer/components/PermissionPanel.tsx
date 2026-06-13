@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { getPermissionPreset, type PermissionPresetId } from "@pairpair/shared";
-import type { ClipboardHistoryEntry } from "../store/session-store";
+import type { ClipboardHistoryEntry, ClipboardSyncMode } from "../store/session-store";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";
 
 interface PermissionPanelProps {
   role: "host" | "guest";
   onSendClipboardText?: (text: string) => void;
+  onPasteClipboardText?: (text: string) => void;
   clipboardHistory?: ClipboardHistoryEntry[];
   onReceiveClipboardText?: (text: string) => void;
   onClearClipboardHistory?: () => void;
@@ -15,6 +16,7 @@ interface PermissionPanelProps {
 export function PermissionPanel({
   role,
   onSendClipboardText,
+  onPasteClipboardText,
   clipboardHistory = [],
   onReceiveClipboardText,
   onClearClipboardHistory,
@@ -26,9 +28,12 @@ export function PermissionPanel({
     permissionPresetId,
     sessionPermissions,
     setPermissionPreset,
+    clipboardSyncMode,
+    setClipboardSyncMode,
   } = useSessionStore();
   const presets: PermissionPresetId[] = ["viewOnly", "pointerOnly", "pointerAndClick", "clipboardOnly", "noKeyboard", "annotationOnly", "fullControl"];
   const [clipboardStatus, setClipboardStatus] = useState<string | null>(null);
+  const latestRemoteEntry = clipboardHistory.find((entry) => entry.direction === "received");
 
   const handleGrantControl = () => {
     setControlState("controlAllowed");
@@ -61,6 +66,121 @@ export function PermissionPanel({
     if (presetId === "viewOnly" || presetId === "clipboardOnly" || presetId === "annotationOnly") {
       setControlState("viewOnly");
     }
+  };
+
+  const readClipboardText = async (): Promise<string> => {
+    return navigator.clipboard.readText();
+  };
+
+  const handleSendClipboard = () => {
+    void readClipboardText().then((text) => {
+      if (!text.trim()) {
+        setClipboardStatus("ローカルクリップボードに送信できるテキストがありません");
+        return;
+      }
+      onSendClipboardText?.(text);
+      setClipboardStatus("ローカルクリップボードのテキストを共有しました");
+    }).catch(() => {
+      setClipboardStatus("クリップボードの読み取りに失敗しました");
+    });
+  };
+
+  const handlePasteClipboard = () => {
+    void readClipboardText().then((text) => {
+      if (!text.trim()) {
+        setClipboardStatus("ローカルクリップボードに貼り付けできるテキストがありません");
+        return;
+      }
+      onPasteClipboardText?.(text);
+      setClipboardStatus("ローカルクリップボードのテキストを相手へ貼り付けました");
+    }).catch(() => {
+      setClipboardStatus("クリップボードの読み取りに失敗しました");
+    });
+  };
+
+  const renderClipboardSection = (options: { showPasteButton: boolean; helperText: string }): React.ReactElement | null => {
+    if (!sessionPermissions.clipboard) return null;
+
+    return (
+      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ color: "#9cb0c8", fontSize: 12, lineHeight: 1.6 }}>
+          {options.helperText}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {onSendClipboardText && (
+            <button onClick={handleSendClipboard} style={btnStyle("#4a9eff")}>
+              送る
+            </button>
+          )}
+          {options.showPasteButton && onPasteClipboardText && (
+            <button onClick={handlePasteClipboard} style={btnStyle("#2fb36d")}>
+              貼り付け
+            </button>
+          )}
+          {latestRemoteEntry && onReceiveClipboardText && (
+            <button
+              onClick={() => {
+                onReceiveClipboardText(latestRemoteEntry.text);
+                setClipboardStatus("最新の受信スニペットをローカルクリップボードへコピーしました");
+              }}
+              style={secondaryButtonStyle}
+            >
+              受け取る
+            </button>
+          )}
+          {onClearClipboardHistory && (
+            <button onClick={onClearClipboardHistory} style={secondaryButtonStyle}>
+              履歴を消去
+            </button>
+          )}
+          <button
+            onClick={() => {
+              const nextMode: ClipboardSyncMode = clipboardSyncMode === "manual" ? "auto" : "manual";
+              setClipboardSyncMode(nextMode);
+              setClipboardStatus(nextMode === "auto" ? "自動同期を有効にしました" : "自動同期を停止しました");
+            }}
+            style={clipboardModeButtonStyle(clipboardSyncMode)}
+          >
+            自動同期 {clipboardSyncMode === "auto" ? "ON" : "OFF"}
+          </button>
+          {options.showPasteButton && (
+            <span style={{ color: "#9cb0c8", fontSize: 12 }}>
+              Ctrl+V / Command+V / Shift+Insert でも相手へ貼り付けできます
+            </span>
+          )}
+        </div>
+        {clipboardStatus && <span style={{ color: "#888", fontSize: 12 }}>{clipboardStatus}</span>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ color: "#9cb0c8", fontSize: 12 }}>スニペット履歴</div>
+          {clipboardHistory.length === 0 ? (
+            <div style={{ color: "#6f7f96", fontSize: 12 }}>まだ送受信履歴はありません</div>
+          ) : (
+            clipboardHistory.map((entry) => (
+              <div key={entry.id} style={historyItemStyle}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <span style={{ color: entry.direction === "sent" ? "#9fd3ff" : "#b9f5c8", fontSize: 11 }}>
+                    {entry.direction === "sent" ? "送信" : "受信"} / {entry.peerRole === "host" ? "ホスト" : "ゲスト"}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (!onReceiveClipboardText) return;
+                      onReceiveClipboardText(entry.text);
+                      setClipboardStatus("選択したスニペットをローカルクリップボードへコピーしました");
+                    }}
+                    style={smallButtonStyle}
+                  >
+                    受け取る
+                  </button>
+                </div>
+                <div style={{ color: "#fff", fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {truncate(entry.text, 180)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (role === "host") {
@@ -114,6 +234,10 @@ export function PermissionPanel({
             </button>
           )}
         </div>
+        {renderClipboardSection({
+          showPasteButton: false,
+          helperText: "「送る」はローカルクリップボードのテキストを相手へ共有します。「受け取る」は直近の受信内容または履歴項目をローカルクリップボードへコピーします。",
+        })}
       </div>
     );
   }
@@ -127,10 +251,14 @@ export function PermissionPanel({
         <span style={{ color: "#888", fontSize: 13 }}>
           {sessionPermissions.mouseMove || sessionPermissions.mouseClick || sessionPermissions.mouseWheel || sessionPermissions.keyboard
             ? sessionPermissions.annotation
-              ? "画面をクリックして操作を開始。マーカー注釈も利用できます"
-              : "画面をクリックして操作を開始"
+              ? sessionPermissions.clipboard
+                ? "画面をクリックして操作を開始。マーカー注釈とクリップボード共有も利用できます"
+                : "画面をクリックして操作を開始。マーカー注釈も利用できます"
+              : sessionPermissions.clipboard
+                ? "画面をクリックして操作を開始。クリップボード共有も利用できます"
+                : "画面をクリックして操作を開始"
             : sessionPermissions.clipboard
-              ? "ローカルクリップボードのテキスト送信が利用できます"
+              ? "ローカルクリップボードの共有と受け取りが利用できます"
             : sessionPermissions.annotation
               ? "マーカー注釈は利用できます"
               : "ホストが現在のセッション権限を制限しています"}
@@ -147,70 +275,10 @@ export function PermissionPanel({
         <PermissionChip label="クリップボード" enabled={sessionPermissions.clipboard} />
         <PermissionChip label="注釈" enabled={sessionPermissions.annotation} />
       </div>
-      {sessionPermissions.clipboard && (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            {onSendClipboardText && (
-              <button
-                onClick={() => {
-                  void navigator.clipboard.readText().then((text) => {
-                    if (!text.trim()) {
-                      setClipboardStatus("ローカルクリップボードに送信できるテキストがありません");
-                      return;
-                    }
-                    onSendClipboardText(text);
-                    setClipboardStatus("ローカルクリップボードのテキストを送信しました");
-                  }).catch(() => {
-                    setClipboardStatus("クリップボードの読み取りに失敗しました");
-                  });
-                }}
-                style={btnStyle("#4a9eff")}
-              >
-                送る
-              </button>
-            )}
-            {onClearClipboardHistory && (
-              <button onClick={onClearClipboardHistory} style={secondaryButtonStyle}>
-                履歴を消去
-              </button>
-            )}
-            <span style={modeBadgeStyle}>自動同期 OFF</span>
-            <span style={{ color: "#9cb0c8", fontSize: 12 }}>
-              Ctrl+V / Command+V でもテキスト送信できます
-            </span>
-          </div>
-          {clipboardStatus && <span style={{ color: "#888", fontSize: 12 }}>{clipboardStatus}</span>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ color: "#9cb0c8", fontSize: 12 }}>スニペット履歴</div>
-            {clipboardHistory.length === 0 ? (
-              <div style={{ color: "#6f7f96", fontSize: 12 }}>まだ送受信履歴はありません</div>
-            ) : (
-              clipboardHistory.map((entry) => (
-                <div key={entry.id} style={historyItemStyle}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <span style={{ color: entry.direction === "sent" ? "#9fd3ff" : "#b9f5c8", fontSize: 11 }}>
-                      {entry.direction === "sent" ? "送信" : "受信"} / {entry.peerRole === "host" ? "ホスト" : "ゲスト"}
-                    </span>
-                    <button
-                      onClick={() => {
-                        if (!onReceiveClipboardText) return;
-                        onReceiveClipboardText(entry.text);
-                        setClipboardStatus("選択したスニペットをローカルクリップボードへコピーしました");
-                      }}
-                      style={smallButtonStyle}
-                    >
-                      受け取る
-                    </button>
-                  </div>
-                  <div style={{ color: "#fff", fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                    {truncate(entry.text, 180)}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {renderClipboardSection({
+        showPasteButton: true,
+        helperText: "「送る」はローカルクリップボードのテキストを相手へ共有します。「貼り付け」はその内容を相手のアクティブ入力先へ送ります。",
+      })}
     </div>
   );
 }
@@ -276,16 +344,6 @@ const smallButtonStyle: React.CSSProperties = {
   fontSize: 11,
 };
 
-const modeBadgeStyle: React.CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: 999,
-  background: "rgba(255, 209, 102, 0.14)",
-  color: "#ffe7a8",
-  border: "1px solid rgba(255, 209, 102, 0.24)",
-  fontSize: 11,
-  fontWeight: 700,
-};
-
 const historyItemStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -295,3 +353,15 @@ const historyItemStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(255,255,255,0.08)",
 };
+
+function clipboardModeButtonStyle(mode: ClipboardSyncMode): React.CSSProperties {
+  return {
+    padding: "4px 10px",
+    borderRadius: 999,
+    background: mode === "auto" ? "rgba(0, 200, 81, 0.18)" : "rgba(255, 209, 102, 0.14)",
+    color: mode === "auto" ? "#dff7e8" : "#ffe7a8",
+    border: mode === "auto" ? "1px solid rgba(0, 200, 81, 0.28)" : "1px solid rgba(255, 209, 102, 0.24)",
+    fontSize: 11,
+    fontWeight: 700,
+  };
+}

@@ -3,6 +3,7 @@ import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, MouseDown
 import { toNormalizedCoordinate } from "../utils/coordinate";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";
+import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { bindRemoteVideoElement } from "../webrtc/rtc-client";
 
 const MOUSE_MOVE_INTERVAL_MS = 16;
@@ -19,6 +20,7 @@ interface RemoteVideoViewProps {
   fullscreen: boolean;
   displayMode: "fit" | "native";
   wheelDirection: "standard" | "natural";
+  adaptiveMode?: boolean;
 }
 
 export function RemoteVideoView({
@@ -33,6 +35,7 @@ export function RemoteVideoView({
   fullscreen,
   displayMode,
   wheelDirection,
+  adaptiveMode = false,
 }: RemoteVideoViewProps): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -157,9 +160,12 @@ export function RemoteVideoView({
         screenId: "primary",
         timestamp: now,
       };
+      if (adaptiveMode) {
+        adaptiveQualityController.onInputEvent(event);
+      }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerMove]
+    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerMove, adaptiveMode]
   );
 
   const handleMouseDown = useCallback(
@@ -195,9 +201,12 @@ export function RemoteVideoView({
 
       const button = e.button === 0 ? "left" : e.button === 2 ? "right" : "middle";
       const event: MouseDownEvent = { type: "mouse.down", button, x: point.x, y: point.y };
+      if (adaptiveMode) {
+        adaptiveQualityController.onInputEvent(event);
+      }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerStart, fitToViewport]
+    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerStart, fitToViewport, adaptiveMode]
   );
 
   const handleClick = useCallback(
@@ -237,9 +246,12 @@ export function RemoteVideoView({
 
       const button = e.button === 0 ? "left" : e.button === 2 ? "right" : "middle";
       const event: MouseUpEvent = { type: "mouse.up", button, x: point.x, y: point.y };
+      if (adaptiveMode) {
+        adaptiveQualityController.onInputEvent(event);
+      }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onMarkerEnd]
+    [canControl, getPoint, markerEnabled, onMarkerEnd, adaptiveMode]
   );
 
   const handleWheel = useCallback(
@@ -256,9 +268,12 @@ export function RemoteVideoView({
         x: point.x,
         y: point.y,
       };
+      if (adaptiveMode) {
+        adaptiveQualityController.onInputEvent(event);
+      }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, wheelDirection]
+    [canControl, getPoint, markerEnabled, wheelDirection, adaptiveMode]
   );
 
   const handleMouseLeave = useCallback(() => {

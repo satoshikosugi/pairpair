@@ -573,6 +573,9 @@ export function SessionPage(): React.ReactElement {
       const imeEvent = getImeModeEvent(e);
       if (imeEvent) {
         if (!e.repeat) {
+          if (adaptiveMode) {
+            adaptiveQualityController.onInputEvent(imeEvent);
+          }
           dataChannelManager.sendInput(imeEvent);
         }
         return;
@@ -586,6 +589,9 @@ export function SessionPage(): React.ReactElement {
         altKey: e.altKey,
         metaKey: e.metaKey,
       };
+      if (adaptiveMode) {
+        adaptiveQualityController.onInputEvent(event);
+      }
       dataChannelManager.sendInput(event);
     };
 
@@ -607,6 +613,9 @@ export function SessionPage(): React.ReactElement {
         altKey: e.altKey,
         metaKey: e.metaKey,
       };
+      if (adaptiveMode) {
+        adaptiveQualityController.onInputEvent(event);
+      }
       dataChannelManager.sendInput(event);
     };
 
@@ -821,6 +830,7 @@ export function SessionPage(): React.ReactElement {
         fullscreen={fullscreen}
         displayMode={displayMode}
         wheelDirection={wheelDirection}
+        adaptiveMode={adaptiveMode}
       />
 
       {fullscreen && fullscreenHintVisible && (

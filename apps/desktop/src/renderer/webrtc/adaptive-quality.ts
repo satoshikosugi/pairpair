@@ -101,6 +101,21 @@ export class AdaptiveQualityController {
     this.scheduleIdle(this.profiles[this._state].idleTimeoutMs);
   }
 
+  /** Update profile for a specific state and reapply if currently active */
+  updateProfile(state: PairProActivityState, profile: PairProProfile): void {
+    if (!this.profiles) return;
+    this.profiles[state] = profile;
+    if (this._state === state) {
+      this.applyCurrentState();
+    }
+  }
+
+  /** Get current profile (for UI display) */
+  getProfile(state: PairProActivityState): PairProProfile | null {
+    if (!this.profiles) return null;
+    return this.profiles[state];
+  }
+
   private applyCurrentState(): void {
     if (!this.profiles || !this.onApply) return;
     const p = this.profiles[this._state];

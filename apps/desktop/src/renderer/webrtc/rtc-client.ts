@@ -382,3 +382,60 @@ export async function preferCodec(codecMimeType: string): Promise<void> {
     }
   }
 }
+
+/**
+ * Switch screen source during an active session.
+ * Replaces the current video track with a new one from the specified source.
+ */
+export async function switchScreenSource(sourceId: string): Promise<void> {
+  if (!peerConnection || !localStream) {
+    throw new Error("No active peer connection or local stream");
+  }
+
+  try {
+    // Get new stream from the specified source
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: sourceId,
+          maxWidth: 3840,
+          maxHeight: 2160,
+        },
+      } as unknown as MediaTrackConstraints,
+    } as MediaStreamConstraints);
+
+    // Get the new video track
+    const newVideoTrack = newStream.getVideoTracks()[0];
+    if (!newVideoTrack) {
+      throw new Error("No video track in new stream");
+    }
+
+    // Get sender for current video track
+    const senders = peerConnection.getSenders();
+    const videoSender = senders.find((sender) => sender.track?.kind === "video");
+
+    if (videoSender) {
+      // Replace the track
+      await videoSender.replaceTrack(newVideoTrack);
+    } else {
+      // If no video sender exists, add it (shouldn't happen in normal flow)
+      await peerConnection.addTrack(newVideoTrack, newStream);
+    }
+
+    // Stop old video tracks
+    const oldVideoTracks = localStream.getVideoTracks();
+    for (const track of oldVideoTracks) {
+      track.stop();
+      localStream.removeTrack(track);
+    }
+
+    // Add new track to local stream
+    localStream.addTrack(newVideoTrack);
+
+    console.log("[PairPair] Screen source switched successfully");
+  } catch (err) {
+    console.error("[PairPair] Failed to switch screen source:", err);
+    throw err;
+  }
+}

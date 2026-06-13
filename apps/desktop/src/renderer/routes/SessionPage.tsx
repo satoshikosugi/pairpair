@@ -22,12 +22,14 @@ import { PermissionPanel } from "../components/PermissionPanel";
 import { RemoteVideoView } from "../components/RemoteVideoView";
 import { MarkerToolbar } from "../components/MarkerToolbar";
 import { QualityPresetSelector } from "../components/QualityPresetSelector";
+import { ScreenSourcePicker } from "../components/ScreenSourcePicker";
 import {
   closePeerConnection,
   applyQualityPreset,
   setAdaptiveParameters,
   getPeerConnection,
   getLocalStreamResolution,
+  switchScreenSource,
 } from "../webrtc/rtc-client";
 import { signalingClient } from "../webrtc/signaling-client";
 import { startStatsMonitor, stopStatsMonitor, type WebRTCStats } from "../webrtc/stats-monitor";
@@ -81,6 +83,7 @@ export function SessionPage(): React.ReactElement {
   const [adaptiveResPreset, setAdaptiveResPreset] = useState<Exclude<QualityPresetName, "Custom">>(
     (adaptiveBasePreset !== "Custom" ? adaptiveBasePreset : "Balanced") as Exclude<QualityPresetName, "Custom">,
   );
+  const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [annotations, setAnnotations] = useState<AnnotationStroke[]>([]);
   const [markerEnabled, setMarkerEnabled] = useState(false);
   const [markerColor, setMarkerColor] = useState("#ff6b6b");
@@ -675,7 +678,7 @@ export function SessionPage(): React.ReactElement {
             ゲストのマーカーと非操作時カーソルは共有ディスプレイ上に投影されます。
           </div>
 
-          <div style={{ width: "100%", maxWidth: 440, marginBottom: 24 }}>
+          <div style={{ width: "100%", maxWidth: 800, marginBottom: 24 }}>
             <h4 style={{ color: "#aaa", marginBottom: 12 }}>画質設定</h4>
             <div style={{ display: "flex", gap: 0, marginBottom: 12, borderRadius: 6, overflow: "hidden", border: "1px solid #444" }}>
               {[
@@ -714,8 +717,8 @@ export function SessionPage(): React.ReactElement {
                 }}
               />
             ) : (
-              <div style={{ background: "#1a1a2e", border: "1px solid #2a2a4e", borderRadius: 6, padding: "12px 16px", fontSize: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ background: "#1a1a2e", border: "1px solid #2a2a4e", borderRadius: 6, padding: "12px 16px", fontSize: 12, maxHeight: 600, overflowY: "auto" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <span style={{ color: "#888" }}>解像度:</span>
                   <select
                     value={adaptiveResPreset}
@@ -728,7 +731,7 @@ export function SessionPage(): React.ReactElement {
                       });
                       useSessionStore.getState().setAdaptiveBasePreset(preset);
                     }}
-                    style={{ background: "#2a2a3e", color: "#fff", border: "1px solid #444", padding: "2px 6px", borderRadius: 4, fontSize: 12 }}
+                    style={{ background: "#2a2a3e", color: "#fff", border: "1px solid #444", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}
                   >
                     {(["Low", "Balanced", "Sharp", "Ultra"] as const).map((preset) => (
                       <option key={preset} value={preset}>
@@ -737,27 +740,198 @@ export function SessionPage(): React.ReactElement {
                     ))}
                   </select>
                 </div>
-                <div style={{ color: "#4a9eff", marginBottom: 6 }}>
-                  状態: {STATE_LABEL[adaptiveState]} - {pairproProfiles[adaptiveState].fps} fps /{" "}
-                  {calcBitrateMbps(
-                    pairproProfiles[adaptiveState].quality,
-                    QUALITY_PRESETS[adaptiveResPreset].width,
-                    QUALITY_PRESETS[adaptiveResPreset].height,
-                    pairproProfiles[adaptiveState].fps,
-                  )}{" "}
+
+                <div style={{ color: "#4a9eff", marginBottom: 12, fontWeight: "bold" }}>
+                  状態: {STATE_LABEL[adaptiveState]} - {adaptiveQualityController.getProfile(adaptiveState)?.fps ?? 0} fps /{" "}
+                  {adaptiveQualityController.getProfile(adaptiveState)
+                    ? calcBitrateMbps(
+                        adaptiveQualityController.getProfile(adaptiveState)!.quality,
+                        QUALITY_PRESETS[adaptiveResPreset].width,
+                        QUALITY_PRESETS[adaptiveResPreset].height,
+                        adaptiveQualityController.getProfile(adaptiveState)!.fps,
+                      )
+                    : 0}{" "}
                   Mbps
                 </div>
+
+                {/* Table header */}
+                <div style={{ display: "flex", gap: 12, marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #2a2a4e" }}>
+                  <div style={{ flex: "0 0 120px", color: "#888", fontSize: 11, fontWeight: "bold" }}>状態</div>
+                  <div style={{ flex: "0 0 80px", color: "#888", fontSize: 11, fontWeight: "bold" }}>FPS</div>
+                  <div style={{ flex: 1, color: "#888", fontSize: 11, fontWeight: "bold" }}>品質（スライダー）</div>
+                  <div style={{ flex: "0 0 100px", color: "#888", fontSize: 11, fontWeight: "bold" }}>目安 Mbps</div>
+                  <div style={{ flex: "0 0 120px", color: "#888", fontSize: 11, fontWeight: "bold" }}>アイドル時間</div>
+                </div>
+
+                {/* Rows for each state */}
+                {(["idle", "mouse_moving", "scrolling", "typing", "clicking"] as const).map((state) => {
+                  const profile = adaptiveQualityController.getProfile(state);
+                  if (!profile) return null;
+                  return (
+                    <div key={state} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #333" }}>
+                      {/* State label */}
+                      <div style={{ flex: "0 0 120px", color: "#aaa", fontSize: 11 }}>{STATE_LABEL[state]}</div>
+
+                      {/* FPS input */}
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={profile.fps}
+                        onChange={(e) => {
+                          const newFps = Math.max(1, Math.min(60, parseInt(e.target.value, 10) || profile.fps));
+                          const updated = { ...profile, fps: newFps };
+                          adaptiveQualityController.updateProfile(state, updated);
+                          setAdaptiveState(adaptiveQualityController.state);
+                        }}
+                        style={{
+                          flex: "0 0 80px",
+                          padding: "4px 8px",
+                          background: "#2a2a3e",
+                          color: "#fff",
+                          border: "1px solid #444",
+                          borderRadius: 4,
+                          fontSize: 11,
+                        }}
+                      />
+
+                      {/* Quality slider */}
+                      <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center" }}>
+                        <input
+                          type="range"
+                          min="1"
+                          max="100"
+                          step="1"
+                          value={profile.quality}
+                          onChange={(e) => {
+                            const newQuality = parseInt(e.target.value, 10);
+                            const updated = { ...profile, quality: newQuality };
+                            adaptiveQualityController.updateProfile(state, updated);
+                            setAdaptiveState(adaptiveQualityController.state);
+                          }}
+                          style={{ flex: 1, accentColor: "#4a9eff", cursor: "pointer" }}
+                        />
+                        <span style={{ color: "#4a9eff", fontWeight: "bold", fontSize: 11, minWidth: "30px" }}>
+                          {profile.quality}%
+                        </span>
+                      </div>
+
+                      {/* Bitrate estimate */}
+                      <div style={{ flex: "0 0 100px", color: "#666", fontSize: 11, textAlign: "center" }}>
+                        {calcBitrateMbps(
+                          profile.quality,
+                          QUALITY_PRESETS[adaptiveResPreset].width,
+                          QUALITY_PRESETS[adaptiveResPreset].height,
+                          profile.fps,
+                        ).toFixed(1)} Mbps
+                      </div>
+
+                      {/* Idle timeout input */}
+                      <input
+                        type="number"
+                        min="500"
+                        max="15000"
+                        step="500"
+                        value={profile.idleTimeoutMs}
+                        onChange={(e) => {
+                          const newTimeout = Math.max(500, Math.min(15000, parseInt(e.target.value, 10) || profile.idleTimeoutMs));
+                          const updated = { ...profile, idleTimeoutMs: newTimeout };
+                          adaptiveQualityController.updateProfile(state, updated);
+                          setAdaptiveState(adaptiveQualityController.state);
+                        }}
+                        style={{
+                          flex: "0 0 120px",
+                          padding: "4px 8px",
+                          background: "#2a2a3e",
+                          color: "#fff",
+                          border: "1px solid #444",
+                          borderRadius: 4,
+                          fontSize: 11,
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          <button
-            onClick={handleDisconnect}
-            style={{ padding: "10px 24px", background: "#ff4444", color: "#fff", border: "none", borderRadius: 8 }}
-          >
-            セッション終了
-          </button>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => setShowScreenPicker(!showScreenPicker)}
+              style={{
+                padding: "10px 24px",
+                background: "#4a9eff",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+              }}
+            >
+              共有の切り替え
+            </button>
+            <button
+              onClick={handleDisconnect}
+              style={{ padding: "10px 24px", background: "#ff4444", color: "#fff", border: "none", borderRadius: 8 }}
+            >
+              セッション終了
+            </button>
+          </div>
         </div>
+
+        {showScreenPicker && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 999,
+            }}
+            onClick={() => setShowScreenPicker(false)}
+          >
+            <div
+              style={{
+                background: "#16213e",
+                border: "1px solid #333",
+                borderRadius: 8,
+                padding: 24,
+                maxWidth: 900,
+                maxHeight: "80vh",
+                overflow: "auto",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ color: "#fff", marginBottom: 20, fontSize: 18 }}>共有する画面やアプリを選択</h3>
+              <ScreenSourcePicker
+                onSelect={(source) => {
+                  void switchScreenSource(source.id).then(() => {
+                    setShowScreenPicker(false);
+                  }).catch(console.error);
+                }}
+              />
+              <button
+                onClick={() => setShowScreenPicker(false)}
+                style={{
+                  padding: "8px 16px",
+                  background: "#444",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  marginTop: 16,
+                }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
 
         <PermissionPanel role="host" />
       </div>

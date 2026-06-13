@@ -13,7 +13,7 @@ export function SettingsPage(): React.ReactElement {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 500, margin: "0 auto", height: "100%", overflowY: "auto" }}>
+    <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto", height: "100%", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button onClick={() => navigate("home")} style={{ background: "transparent", color: "#aaa", border: "none", fontSize: 20 }}>
           ←
@@ -106,56 +106,90 @@ export function SettingsPage(): React.ReactElement {
             }}
           />
         </SettingItem>
-        <div style={{ marginTop: 12, overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr>
-                {["状態", "FPS", "品質 %", "目安 Mbps", "タイムアウト (ms)"].map((h) => (
-                  <th key={h} style={{ padding: "4px 8px", color: "#888", fontWeight: 400, textAlign: "left", borderBottom: "1px solid #2a2a3e" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {([
-                ["idle",         "アイドル"],
-                ["mouse_moving", "マウス移動"],
-                ["scrolling",    "スクロール"],
-                ["typing",       "タイプ中"],
-                ["clicking",     "クリック"],
-              ] as [PairProActivityState, string][]).map(([key, label]) => {
-                const p = settings.pairproProfiles[key];
-                return (
-                  <tr key={key}>
-                    <td style={{ padding: "4px 8px", color: "#ccc" }}>{label}</td>
-                    <td style={{ padding: "4px 8px" }}>
-                      <input
-                        type="number" min={1} max={60} value={p.fps}
-                        onChange={(e) => settings.setPairproProfile(key, { ...p, fps: Number(e.target.value) })}
-                        style={{ ...inputStyle, width: 52 }}
-                      />
-                    </td>
-                    <td style={{ padding: "4px 8px" }}>
-                      <input
-                        type="number" min={1} max={100} value={p.quality}
-                        onChange={(e) => settings.setPairproProfile(key, { ...p, quality: Number(e.target.value) })}
-                        style={{ ...inputStyle, width: 52 }}
-                      />
-                    </td>
-                    <td style={{ padding: "4px 8px", color: "#666", fontSize: 12 }}>
-                      {calcBitrateMbps(p.quality, 1920, 1080, p.fps)}
-                    </td>
-                    <td style={{ padding: "4px 8px" }}>
-                      <input
-                        type="number" min={100} max={10000} step={100} value={p.idleTimeoutMs}
-                        onChange={(e) => settings.setPairproProfile(key, { ...p, idleTimeoutMs: Number(e.target.value) })}
-                        style={{ ...inputStyle, width: 80 }}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ marginTop: 12, background: "#1a1a2e", border: "1px solid #2a2a4e", borderRadius: 6, padding: "12px 16px", fontSize: 12, maxHeight: 600, overflowY: "auto" }}>
+          {/* Table header */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #2a2a4e" }}>
+            <div style={{ flex: "0 0 120px", color: "#888", fontSize: 11, fontWeight: "bold" }}>状態</div>
+            <div style={{ flex: "0 0 80px", color: "#888", fontSize: 11, fontWeight: "bold" }}>FPS</div>
+            <div style={{ flex: 1, color: "#888", fontSize: 11, fontWeight: "bold" }}>品質（スライダー）</div>
+            <div style={{ flex: "0 0 100px", color: "#888", fontSize: 11, fontWeight: "bold" }}>目安 Mbps</div>
+            <div style={{ flex: "0 0 120px", color: "#888", fontSize: 11, fontWeight: "bold" }}>アイドル時間</div>
+          </div>
+
+          {/* Rows for each state */}
+          {([
+            ["idle",         "アイドル"],
+            ["mouse_moving", "マウス移動"],
+            ["scrolling",    "スクロール"],
+            ["typing",       "タイプ中"],
+            ["clicking",     "クリック"],
+          ] as [PairProActivityState, string][]).map(([key, label]) => {
+            const p = settings.pairproProfiles[key];
+            return (
+              <div key={key} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #333" }}>
+                {/* State label */}
+                <div style={{ flex: "0 0 120px", color: "#aaa", fontSize: 11 }}>{label}</div>
+
+                {/* FPS input */}
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={p.fps}
+                  onChange={(e) => settings.setPairproProfile(key, { ...p, fps: Number(e.target.value) })}
+                  style={{
+                    flex: "0 0 80px",
+                    padding: "4px 8px",
+                    background: "#2a2a3e",
+                    color: "#fff",
+                    border: "1px solid #444",
+                    borderRadius: 4,
+                    fontSize: 11,
+                  }}
+                />
+
+                {/* Quality slider */}
+                <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={p.quality}
+                    onChange={(e) => settings.setPairproProfile(key, { ...p, quality: Number(e.target.value) })}
+                    style={{ flex: 1, accentColor: "#4a9eff", cursor: "pointer" }}
+                  />
+                  <span style={{ color: "#4a9eff", fontWeight: "bold", fontSize: 11, minWidth: "30px" }}>
+                    {p.quality}%
+                  </span>
+                </div>
+
+                {/* Bitrate estimate */}
+                <div style={{ flex: "0 0 100px", color: "#666", fontSize: 11, textAlign: "center" }}>
+                  {calcBitrateMbps(p.quality, 1920, 1080, p.fps).toFixed(1)} Mbps
+                </div>
+
+                {/* Idle timeout input */}
+                <input
+                  type="number"
+                  min="500"
+                  max="15000"
+                  step="500"
+                  value={p.idleTimeoutMs}
+                  onChange={(e) => settings.setPairproProfile(key, { ...p, idleTimeoutMs: Number(e.target.value) })}
+                  style={{
+                    flex: "0 0 120px",
+                    padding: "4px 8px",
+                    background: "#2a2a3e",
+                    color: "#fff",
+                    border: "1px solid #444",
+                    borderRadius: 4,
+                    fontSize: 11,
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
         <button
           onClick={() => settings.resetPairproProfiles()}

@@ -4,6 +4,7 @@ import { setupIpcHandlers } from "./ipc";
 import { getSelectedSourceId } from "./ipc/screen.ipc";
 import log from "electron-log";
 import { setupApplicationMenu } from "./menu";
+import { setMainWindow } from "./window";
 
 // Hardware encoding flags (must be set before app.ready)
 app.commandLine.appendSwitch("enable-accelerated-video-encode");
@@ -34,12 +35,18 @@ function createMainWindow(): BrowserWindow {
     win.show();
   });
 
+  setMainWindow(win);
+
   win.on("enter-full-screen", () => {
     win.webContents.send("session:fullscreen-changed", true);
   });
 
   win.on("leave-full-screen", () => {
     win.webContents.send("session:fullscreen-changed", false);
+  });
+
+  win.on("closed", () => {
+    setMainWindow(null);
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {

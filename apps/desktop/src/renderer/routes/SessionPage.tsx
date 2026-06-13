@@ -288,10 +288,9 @@ export function SessionPage(): React.ReactElement {
   }, []);
 
   const preparePeerReconnection = useCallback(() => {
-    console.info("[PairPair][RoleSwitch] preparePeerReconnection", {
-      role: useSessionStore.getState().role,
-      sessionId,
-    });
+    console.info(
+      `[PairPair][RoleSwitch] preparePeerReconnection role=${String(useSessionStore.getState().role)} sessionId=${sessionId ?? "<none>"}`,
+    );
     clearRoleSwitchTimeout();
     signalingClient.send({ type: "session.roleSwitch.prepare" });
     hostPeerAuthenticator.reset();
@@ -315,11 +314,9 @@ export function SessionPage(): React.ReactElement {
     }
 
     const nextHostName = guestDeviceName ?? "PairPair Guest";
-    console.info("[PairPair][RoleSwitch] reconnectAsGuestAfterRoleSwitch", {
-      sessionId,
-      nextHostName,
-      tokenPreview: nextGuestToken.slice(0, 8),
-    });
+    console.info(
+      `[PairPair][RoleSwitch] reconnectAsGuestAfterRoleSwitch sessionId=${sessionId} nextHostName=${nextHostName} token=${nextGuestToken.slice(0, 8)}`,
+    );
     preparePeerReconnection();
 
     useSessionStore.getState().setRole("guest");
@@ -381,12 +378,9 @@ export function SessionPage(): React.ReactElement {
       ? ({ ...customPreset, name: "Custom" } as QualityPreset)
       : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
     const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveResPreset] : undefined;
-    console.info("[PairPair][RoleSwitch] reconnectAsHostAfterRoleSwitch", {
-      sessionId,
-      sourceId: source.id,
-      sourceName: source.name,
-      tokenPreview: nextHostToken.slice(0, 8),
-    });
+    console.info(
+      `[PairPair][RoleSwitch] reconnectAsHostAfterRoleSwitch sessionId=${sessionId} sourceId=${source.id} sourceName=${source.name} token=${nextHostToken.slice(0, 8)}`,
+    );
 
     preparePeerReconnection();
     await hostPeerAuthenticator.prepare(code, "");
@@ -477,11 +471,9 @@ export function SessionPage(): React.ReactElement {
     }
 
     pendingRoleSwitchSourceRef.current = source;
-    console.info("[PairPair][RoleSwitch] startGuestToHostRoleSwitch", {
-      sessionId,
-      sourceId: source.id,
-      sourceName: source.name,
-    });
+    console.info(
+      `[PairPair][RoleSwitch] startGuestToHostRoleSwitch sessionId=${sessionId ?? "<none>"} sourceId=${source.id} sourceName=${source.name}`,
+    );
     setShowRoleSwitchPicker(false);
     setRoleSwitchInProgress(true);
     useSessionStore.getState().setRoleSwitchInProgress(true);

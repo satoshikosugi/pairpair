@@ -24,12 +24,9 @@ export class SignalingClient {
     this.token = token;
     this.role = role;
     this.intentionalClose = false;
-    console.info("[PairPair][Signaling] connect", {
-      role,
-      sessionId,
-      wsUrl,
-      tokenPreview: token.slice(0, 8),
-    });
+    console.info(
+      `[PairPair][Signaling] connect role=${role} sessionId=${sessionId} wsUrl=${wsUrl} token=${token.slice(0, 8)}`,
+    );
     this.doConnect();
   }
 
@@ -47,11 +44,9 @@ export class SignalingClient {
         this.role === "host"
           ? { type: "host.register", sessionId: this.sessionId, hostToken: this.token }
           : { type: "guest.register", sessionId: this.sessionId, guestToken: this.token };
-      console.info("[PairPair][Signaling] websocket open", {
-        role: this.role,
-        sessionId: this.sessionId,
-        registerType: registerMsg.type,
-      });
+      console.info(
+        `[PairPair][Signaling] websocket open role=${this.role} sessionId=${this.sessionId} registerType=${registerMsg.type}`,
+      );
       ws.send(JSON.stringify(registerMsg));
     };
 
@@ -62,12 +57,10 @@ export class SignalingClient {
       try {
         const message = JSON.parse(event.data as string) as Record<string, unknown>;
         const type = message.type as string;
-        console.info("[PairPair][Signaling] message", {
-          role: this.role,
-          sessionId: this.sessionId,
-          type,
-          code: typeof message.code === "string" ? message.code : undefined,
-        });
+        const code = typeof message.code === "string" ? message.code : "";
+        console.info(
+          `[PairPair][Signaling] message role=${this.role} sessionId=${this.sessionId} type=${type}${code ? ` code=${code}` : ""}`,
+        );
         const handlers = this.messageHandlers.get(type) ?? [];
         const wildcardHandlers = this.messageHandlers.get("*") ?? [];
         [...handlers, ...wildcardHandlers].forEach((h) => h(message));
@@ -78,14 +71,9 @@ export class SignalingClient {
 
     ws.onclose = (event) => {
       const isCurrentSocket = this.ws === ws && generation === this.socketGeneration;
-      console.info("[PairPair][Signaling] websocket close", {
-        role: this.role,
-        sessionId: this.sessionId,
-        code: event.code,
-        reason: event.reason,
-        intentional: this.intentionalClose,
-        isCurrentSocket,
-      });
+      console.info(
+        `[PairPair][Signaling] websocket close role=${this.role} sessionId=${this.sessionId} code=${event.code} reason=${event.reason || "<empty>"} intentional=${this.intentionalClose} isCurrent=${isCurrentSocket}`,
+      );
       if (!isCurrentSocket) {
         return;
       }
@@ -116,10 +104,7 @@ export class SignalingClient {
   }
 
   disconnect(): void {
-    console.info("[PairPair][Signaling] disconnect", {
-      role: this.role,
-      sessionId: this.sessionId,
-    });
+    console.info(`[PairPair][Signaling] disconnect role=${this.role} sessionId=${this.sessionId}`);
     this.intentionalClose = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -135,11 +120,9 @@ export class SignalingClient {
 
   send(message: Partial<SignalingMessage> & Record<string, unknown>): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.info("[PairPair][Signaling] send", {
-        role: this.role,
-        sessionId: this.sessionId,
-        type: message.type,
-      });
+      console.info(
+        `[PairPair][Signaling] send role=${this.role} sessionId=${this.sessionId} type=${String(message.type)}`,
+      );
       this.ws.send(JSON.stringify({ ...message, sessionId: this.sessionId }));
     }
   }

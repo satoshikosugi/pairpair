@@ -7,6 +7,7 @@ interface MarkerToolbarProps {
   displayMode: "fit" | "native";
   wheelDirection: "standard" | "natural";
   fullscreen: boolean;
+  controlActive?: boolean;
   minimized?: boolean;
   onToggle: () => void;
   onEnable: () => void;
@@ -20,6 +21,7 @@ interface MarkerToolbarProps {
   hasStrokes: boolean;
   onToggleFullscreen: () => void;
   onToggleMinimized?: () => void;
+  onReturnControl?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
@@ -33,6 +35,7 @@ export function MarkerToolbar({
   displayMode,
   wheelDirection,
   fullscreen,
+  controlActive = false,
   minimized = false,
   onToggle,
   onEnable,
@@ -46,26 +49,52 @@ export function MarkerToolbar({
   hasStrokes,
   onToggleFullscreen,
   onToggleMinimized,
+  onReturnControl,
   dragHandleProps,
 }: MarkerToolbarProps): React.ReactElement {
-  const compact = fullscreen;
+  const compact = true;
 
   return (
     <div
       style={{
         ...rootStyle,
-        ...(compact ? floatingRootStyle(minimized) : inlineRootStyle),
+        ...floatingRootStyle(minimized),
       }}
     >
       <div
-        {...dragHandleProps}
         style={{
           ...headerStyle,
-          cursor: compact ? "move" : "default",
-          ...(dragHandleProps?.style ?? {}),
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div
+          {...dragHandleProps}
+          style={{
+            ...dragHandleStyle,
+            cursor: dragHandleProps ? "move" : "default",
+            ...(dragHandleProps?.style ?? {}),
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 4px)",
+              gap: 3,
+              flexShrink: 0,
+            }}
+          >
+            {Array.from({ length: 6 }).map((_, index) => (
+              <span
+                key={index}
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.42)",
+                }}
+              />
+            ))}
+          </div>
           <div
             style={{
               width: 8,
@@ -73,31 +102,36 @@ export function MarkerToolbar({
               borderRadius: 999,
               background: enabled ? "#4cc9f0" : "rgba(255,255,255,0.3)",
               boxShadow: enabled ? "0 0 10px rgba(76, 201, 240, 0.7)" : "none",
+              flexShrink: 0,
             }}
           />
-          <div>
-            <div style={{ color: "#fff", fontSize: compact ? 12 : 13, fontWeight: 700 }}>マーカーツール</div>
-            <div style={{ color: "#8ea7c2", fontSize: 11 }}>
-              {enabled ? "描画中" : "描画待機"} / {hasStrokes ? "注釈あり" : "注釈なし"}
+          {!minimized && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#fff", fontSize: compact ? 12 : 13, fontWeight: 700, lineHeight: 1 }}>
+                マーカーツール
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "stretch", gap: 6, flexShrink: 0 }}>
+          <TooltipBubble text={controlActive ? "クリックで操作権限を返上" : "現在は操作権限なし"}>
+            <button
+              onClick={controlActive && onReturnControl ? onReturnControl : undefined}
+              disabled={!controlActive}
+              style={controlIndicatorStyle(controlActive)}
+            >
+              <span style={controlIndicatorDotStyle(controlActive)} />
+              <span>操作中</span>
+            </button>
+          </TooltipBubble>
           {onToggleMinimized && (
-            <ToolbarButton
-              label={minimized ? "戻す" : "最小化"}
-              tooltip={minimized ? "ツールボックスを展開" : "ツールボックスを半透明の最小表示にする"}
-              onClick={onToggleMinimized}
-              compact
-            />
+            <TooltipBubble text={minimized ? "ツールボックスを再展開" : "ツールボックスを最小化"}>
+              <button onClick={onToggleMinimized} style={headerIconButtonStyle}>
+                {minimized ? "□" : "−"}
+              </button>
+            </TooltipBubble>
           )}
-          <ToolbarButton
-            label={fullscreen ? "全画面終了" : "全画面"}
-            tooltip={fullscreen ? "全画面表示を終了" : "映像を全画面表示にする"}
-            onClick={onToggleFullscreen}
-            compact
-          />
         </div>
       </div>
 
@@ -105,6 +139,12 @@ export function MarkerToolbar({
         <div style={{ display: "flex", flexDirection: "column", gap: compact ? 10 : 12 }}>
           <Section label="表示">
             <div style={segmentedStyle}>
+              <ToolbarButton
+                label={fullscreen ? "全画面終了" : "全画面"}
+                tooltip={fullscreen ? "全画面表示を終了" : "映像を全画面表示にする"}
+                onClick={onToggleFullscreen}
+              />
+              <div style={{ width: 4 }} />
               <ToolbarButton
                 label="フィット"
                 tooltip="映像全体が収まるように縮小表示"
@@ -215,6 +255,7 @@ function ToolbarButton({
   selected = false,
   compact = false,
   emphasis = false,
+  iconOnly = false,
 }: {
   label: string;
   tooltip: string;
@@ -223,6 +264,7 @@ function ToolbarButton({
   selected?: boolean;
   compact?: boolean;
   emphasis?: boolean;
+  iconOnly?: boolean;
 }): React.ReactElement {
   return (
     <TooltipBubble text={tooltip}>
@@ -230,7 +272,9 @@ function ToolbarButton({
         onClick={onClick}
         disabled={disabled}
         style={{
-          padding: compact ? "5px 9px" : "7px 11px",
+          padding: iconOnly ? "4px 0" : compact ? "5px 9px" : "7px 11px",
+          width: iconOnly ? 28 : undefined,
+          minWidth: iconOnly ? 28 : undefined,
           borderRadius: 10,
           border: selected ? "1px solid #4cc9f0" : "1px solid rgba(255,255,255,0.14)",
           background: disabled
@@ -242,8 +286,9 @@ function ToolbarButton({
                 : "rgba(255,255,255,0.06)",
           color: disabled ? "rgba(255,255,255,0.38)" : "#fff",
           fontSize: compact ? 11 : 12,
-          fontWeight: selected || emphasis ? 700 : 500,
+          fontWeight: iconOnly ? 700 : selected || emphasis ? 700 : 500,
           whiteSpace: "nowrap",
+          textAlign: "center",
         }}
       >
         {label}
@@ -280,21 +325,9 @@ const rootStyle: React.CSSProperties = {
   userSelect: "none",
 };
 
-const inlineRootStyle: React.CSSProperties = {
-  marginLeft: "auto",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-  padding: "12px 14px",
-  borderRadius: 16,
-  background: "linear-gradient(180deg, rgba(18,31,54,0.96), rgba(11,18,32,0.94))",
-  border: "1px solid rgba(255,255,255,0.1)",
-  boxShadow: "0 16px 30px rgba(0,0,0,0.28)",
-  minWidth: 420,
-};
-
 function floatingRootStyle(minimized: boolean): React.CSSProperties {
   return {
+    position: "relative",
     width: minimized ? 240 : 320,
     display: "flex",
     flexDirection: "column",
@@ -315,6 +348,21 @@ const headerStyle: React.CSSProperties = {
   justifyContent: "space-between",
   alignItems: "center",
   gap: 12,
+  minHeight: 30,
+};
+
+const dragHandleStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-start",
+  gap: 8,
+  flex: 1,
+  minWidth: 0,
+  height: 30,
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  padding: "0 10px",
 };
 
 const segmentedStyle: React.CSSProperties = {
@@ -359,4 +407,51 @@ const tooltipStyle: React.CSSProperties = {
   visibility: "hidden",
   transition: "opacity 120ms ease",
   zIndex: 30,
+};
+
+function controlIndicatorStyle(active: boolean): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 30,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: active ? "1px solid rgba(255, 107, 107, 0.42)" : "1px solid rgba(255,255,255,0.12)",
+    background: active
+      ? "linear-gradient(135deg, rgba(255,79,79,0.24), rgba(255,79,79,0.1))"
+      : "rgba(255,255,255,0.05)",
+    color: active ? "#ffeaea" : "rgba(255,255,255,0.45)",
+    fontSize: 11,
+    fontWeight: 700,
+    boxShadow: active ? "0 0 16px rgba(255,79,79,0.16)" : "none",
+    whiteSpace: "nowrap",
+    cursor: active ? "pointer" : "default",
+    flexShrink: 0,
+  };
+}
+
+function controlIndicatorDotStyle(active: boolean): React.CSSProperties {
+  return {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: active ? "#ff5f57" : "rgba(255,255,255,0.3)",
+    boxShadow: active ? "0 0 10px rgba(255,95,87,0.9)" : "none",
+    flexShrink: 0,
+  };
+}
+
+const headerIconButtonStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#fff",
+  fontSize: 14,
+  fontWeight: 700,
+  lineHeight: 1,
+  textAlign: "center",
 };

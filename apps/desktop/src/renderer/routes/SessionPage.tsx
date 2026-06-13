@@ -40,6 +40,43 @@ import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
 const FULLSCREEN_HINT_DURATION_MS = 5000;
+const TOOLBAR_IDLE_FADE_MS = 5000;
+
+function getToolboxBounds(
+  panelWidth: number,
+  panelHeight: number,
+  fullscreen: boolean,
+  displayMode: "fit" | "native",
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const fallbackMinY = fullscreen ? 12 : 64;
+  const fallback = {
+    minX: 12,
+    maxX: Math.max(12, window.innerWidth - panelWidth - 12),
+    minY: fallbackMinY,
+    maxY: Math.max(fallbackMinY, window.innerHeight - panelHeight - 12),
+  };
+
+  if (!fullscreen || displayMode !== "fit") {
+    return fallback;
+  }
+
+  const video = document.getElementById("remote-video");
+  if (!(video instanceof HTMLVideoElement)) {
+    return fallback;
+  }
+
+  const rect = video.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return fallback;
+  }
+
+  return {
+    minX: Math.max(12, rect.left + 8),
+    maxX: Math.max(Math.max(12, rect.left + 8), rect.right - panelWidth - 8),
+    minY: Math.max(12, rect.top + 8),
+    maxY: Math.max(Math.max(12, rect.top + 8), rect.bottom - panelHeight - 8),
+  };
+}
 
 function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
   if (event.code === "Lang1") return { type: "ime.mode", mode: "japanese" };
@@ -93,7 +130,8 @@ export function SessionPage(): React.ReactElement {
   const [fullscreenHintVisible, setFullscreenHintVisible] = useState(false);
   const [displayMode, setDisplayMode] = useState<"fit" | "native">("fit");
   const [toolboxMinimized, setToolboxMinimized] = useState(false);
-  const [toolboxPosition, setToolboxPosition] = useState({ x: 18, y: 18 });
+  const [toolboxPosition, setToolboxPosition] = useState({ x: 16, y: 76 });
+  const [toolboxDimmed, setToolboxDimmed] = useState(false);
 
   const adaptiveInputHandlerRef = useRef<((e: PairPairInputEvent) => void) | null>(null);
   const metricsStopRef = useRef<(() => void) | null>(null);
@@ -101,11 +139,13 @@ export function SessionPage(): React.ReactElement {
   const controlMessageHandlerRef = useRef<((message: ControlMessage) => void) | null>(null);
   const hoverHideTimerRef = useRef<number | null>(null);
   const fullscreenHintTimerRef = useRef<number | null>(null);
+  const toolboxIdleTimerRef = useRef<number | null>(null);
   const lastEscapeAtRef = useRef(0);
   const activeStrokeRef = useRef<string | null>(null);
   const annotationsRef = useRef<AnnotationStroke[]>([]);
   const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
   const toolboxDragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const toolboxElementRef = useRef<HTMLDivElement | null>(null);
   const isHost = role === "host";
 
   const STATE_LABEL: Record<string, string> = {
@@ -216,13 +256,12 @@ export function SessionPage(): React.ReactElement {
     finalizeSession();
   }, [finalizeSession, syncHostOverlay]);
 
-  const handleReturnControlToHost = useCallback(() => {
-    if (!isHost) return;
+  const handleReleaseControl = useCallback(() => {
     if (useSessionStore.getState().controlState !== "controlAllowed") return;
 
     useSessionStore.getState().setControlState("controlRevoked");
     dataChannelManager.sendControl({ type: "remoteControl.revoked" });
-  }, [isHost]);
+  }, []);
 
   const upsertStrokePoint = useCallback((strokeId: string, point: AnnotationPoint) => {
     setAnnotations((prev) => {
@@ -316,13 +355,37 @@ export function SessionPage(): React.ReactElement {
     dataChannelManager.sendControl({ type: "guest.cursor", cursor });
   }, [controlState]);
 
-  const enterFullscreen = useCallback(() => {
-    void window.pairpair.setGuestFullscreen(true).catch(console.error);
-  }, []);
-
   const toggleGuestFullscreen = useCallback(() => {
     void window.pairpair.setGuestFullscreen(!fullscreen).catch(console.error);
   }, [fullscreen]);
+
+  const restoreToolboxIntoView = useCallback(() => {
+    setToolboxMinimized(false);
+    setToolboxDimmed(false);
+    const placeToolbar = () => {
+      const panelWidth = toolboxElementRef.current?.offsetWidth ?? 320;
+      const panelHeight = toolboxElementRef.current?.offsetHeight ?? 260;
+      const bounds = getToolboxBounds(panelWidth, panelHeight, fullscreen, displayMode);
+      setToolboxPosition({
+        x: bounds.maxX,
+        y: bounds.minY,
+      });
+    };
+    placeToolbar();
+    window.setTimeout(placeToolbar, 0);
+  }, [displayMode, fullscreen]);
+
+  const refreshToolboxActivity = useCallback(() => {
+    if (isHost) return;
+    setToolboxDimmed(false);
+    if (toolboxIdleTimerRef.current !== null) {
+      window.clearTimeout(toolboxIdleTimerRef.current);
+    }
+    toolboxIdleTimerRef.current = window.setTimeout(() => {
+      setToolboxDimmed(true);
+      toolboxIdleTimerRef.current = null;
+    }, TOOLBAR_IDLE_FADE_MS);
+  }, [isHost]);
 
   useEffect(() => {
     startStatsMonitor(setStats);
@@ -336,7 +399,7 @@ export function SessionPage(): React.ReactElement {
         useSessionStore.getState().setControlState("controlPaused");
         dataChannelManager.sendControl({ type: "remoteControl.paused" });
       } else if (action === "revoke") {
-        handleReturnControlToHost();
+        handleReleaseControl();
       } else if (action === "end") {
         handleDisconnect();
       }
@@ -359,8 +422,50 @@ export function SessionPage(): React.ReactElement {
       if (fullscreenHintTimerRef.current !== null) {
         window.clearTimeout(fullscreenHintTimerRef.current);
       }
+      if (toolboxIdleTimerRef.current !== null) {
+        window.clearTimeout(toolboxIdleTimerRef.current);
+      }
     };
-  }, [handleDisconnect, handleReturnControlToHost, isHost]);
+  }, [handleDisconnect, handleReleaseControl, isHost]);
+
+  useEffect(() => {
+    if (isHost) return;
+
+    const handleActivity = () => {
+      refreshToolboxActivity();
+    };
+
+    refreshToolboxActivity();
+    window.addEventListener("pointermove", handleActivity, { passive: true });
+    window.addEventListener("pointerdown", handleActivity, { passive: true });
+    window.addEventListener("wheel", handleActivity, { passive: true });
+    window.addEventListener("keydown", handleActivity);
+
+    return () => {
+      window.removeEventListener("pointermove", handleActivity);
+      window.removeEventListener("pointerdown", handleActivity);
+      window.removeEventListener("wheel", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      if (toolboxIdleTimerRef.current !== null) {
+        window.clearTimeout(toolboxIdleTimerRef.current);
+        toolboxIdleTimerRef.current = null;
+      }
+    };
+  }, [isHost, refreshToolboxActivity]);
+
+  useEffect(() => {
+    if (isHost || !fullscreen) return;
+
+    const handleContextMenuCapture = (event: MouseEvent) => {
+      event.preventDefault();
+      restoreToolboxIntoView();
+    };
+
+    window.addEventListener("contextmenu", handleContextMenuCapture, true);
+    return () => {
+      window.removeEventListener("contextmenu", handleContextMenuCapture, true);
+    };
+  }, [fullscreen, isHost, restoreToolboxIntoView]);
 
   useEffect(() => {
     const handleFullscreenChanged = (nextFullscreen: boolean) => {
@@ -397,22 +502,23 @@ export function SessionPage(): React.ReactElement {
 
   useEffect(() => {
     if (!fullscreen) {
-      setToolboxMinimized(false);
+      setToolboxPosition((prev) => ({
+        x: prev.x,
+        y: Math.max(64, prev.y),
+      }));
     }
-  }, [fullscreen]);
-
-  useEffect(() => {
-    if (!fullscreen) return;
 
     const handlePointerMove = (event: PointerEvent) => {
       const drag = toolboxDragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
-      const panelWidth = toolboxMinimized ? 240 : 320;
+      const panelWidth = toolboxElementRef.current?.offsetWidth ?? (toolboxMinimized ? 240 : 320);
+      const panelHeight = toolboxElementRef.current?.offsetHeight ?? (toolboxMinimized ? 52 : 260);
+      const bounds = getToolboxBounds(panelWidth, panelHeight, fullscreen, displayMode);
       const nextX = drag.originX + (event.clientX - drag.startX);
       const nextY = drag.originY + (event.clientY - drag.startY);
       setToolboxPosition({
-        x: Math.min(Math.max(12, nextX), Math.max(12, window.innerWidth - panelWidth - 12)),
-        y: Math.min(Math.max(12, nextY), Math.max(12, window.innerHeight - 72)),
+        x: Math.min(Math.max(bounds.minX, nextX), bounds.maxX),
+        y: Math.min(Math.max(bounds.minY, nextY), bounds.maxY),
       });
     };
 
@@ -430,10 +536,31 @@ export function SessionPage(): React.ReactElement {
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [fullscreen, toolboxMinimized]);
+  }, [displayMode, fullscreen, toolboxMinimized]);
+
+  useEffect(() => {
+    const clampToolboxPosition = () => {
+      const panelWidth = toolboxElementRef.current?.offsetWidth ?? (toolboxMinimized ? 240 : 320);
+      const panelHeight = toolboxElementRef.current?.offsetHeight ?? (toolboxMinimized ? 52 : 260);
+      const bounds = getToolboxBounds(panelWidth, panelHeight, fullscreen, displayMode);
+
+      setToolboxPosition((prev) => ({
+        x: Math.min(Math.max(bounds.minX, prev.x), bounds.maxX),
+        y: Math.min(Math.max(bounds.minY, prev.y), bounds.maxY),
+      }));
+    };
+
+    window.addEventListener("resize", clampToolboxPosition);
+    clampToolboxPosition();
+    return () => {
+      window.removeEventListener("resize", clampToolboxPosition);
+    };
+  }, [displayMode, fullscreen, toolboxMinimized]);
 
   const handleToolboxDragStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (!fullscreen) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
     toolboxDragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -451,6 +578,7 @@ export function SessionPage(): React.ReactElement {
       displayMode={displayMode}
       wheelDirection={wheelDirection}
       fullscreen={fullscreen}
+      controlActive={!isHost && controlState === "controlAllowed"}
       minimized={toolboxMinimized}
       onToggle={() => setMarkerEnabled((prev) => !prev)}
       onEnable={() => setMarkerEnabled(true)}
@@ -465,8 +593,9 @@ export function SessionPage(): React.ReactElement {
       canUndo={annotations.length > 0}
       hasStrokes={annotations.length > 0}
       onToggleFullscreen={toggleGuestFullscreen}
-      onToggleMinimized={fullscreen ? () => setToolboxMinimized((prev) => !prev) : undefined}
-      dragHandleProps={fullscreen ? { onPointerDown: handleToolboxDragStart } : undefined}
+      onToggleMinimized={() => setToolboxMinimized((prev) => !prev)}
+      onReturnControl={handleReleaseControl}
+      dragHandleProps={{ onPointerDown: handleToolboxDragStart }}
     />
   );
 
@@ -483,7 +612,7 @@ export function SessionPage(): React.ReactElement {
     void window.pairpair.startActivityMonitor();
     window.pairpair.onSystemActivity(() => {
       if (controlState === "controlAllowed") {
-        handleReturnControlToHost();
+        handleReleaseControl();
       }
       if (adaptiveMode) {
         adaptiveQualityController.notifyActivity("mouse_moving");
@@ -494,7 +623,7 @@ export function SessionPage(): React.ReactElement {
       window.pairpair.removeSystemActivityListener();
       void window.pairpair.stopActivityMonitor();
     };
-  }, [adaptiveMode, controlState, handleReturnControlToHost, isHost]);
+  }, [adaptiveMode, controlState, handleReleaseControl, isHost]);
 
   useEffect(() => {
     if (!isHost) return;
@@ -1053,7 +1182,6 @@ export function SessionPage(): React.ReactElement {
           <ConnectionStatus />
           <span style={{ color: "#aaa", fontSize: 13 }}>{hostDeviceName ?? "Host"}</span>
           <StatsOverlay stats={stats} visible={showStats} onToggle={() => setShowStats(!showStats)} />
-          {markerToolbar}
           <button
             onClick={handleDisconnect}
             style={{
@@ -1084,18 +1212,20 @@ export function SessionPage(): React.ReactElement {
         adaptiveMode={adaptiveMode}
       />
 
-      {fullscreen && (
-        <div
-          style={{
-            position: "absolute",
-            left: toolboxPosition.x,
-            top: toolboxPosition.y,
-            zIndex: 20,
-          }}
-        >
-          {markerToolbar}
-        </div>
-      )}
+      <div
+        ref={toolboxElementRef}
+        style={{
+          position: "absolute",
+          left: toolboxPosition.x,
+          top: toolboxPosition.y,
+          zIndex: 20,
+          pointerEvents: "auto",
+          opacity: toolboxDimmed ? 0.5 : 1,
+          transition: "opacity 160ms ease",
+        }}
+      >
+        {markerToolbar}
+      </div>
 
       {fullscreen && fullscreenHintVisible && (
         <div

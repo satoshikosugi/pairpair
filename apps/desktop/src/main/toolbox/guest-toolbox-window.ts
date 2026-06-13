@@ -1,24 +1,46 @@
-import { BrowserWindow } from "electron";
+import { BrowserWindow, app } from "electron";
+import fs from "node:fs";
 import path from "path";
 import type { GuestToolboxAction, GuestToolboxState } from "../../common/guest-toolbox";
-import { getMainWindow } from "../main";
+import { getMainWindow } from "../window";
 
 let guestToolboxWindow: BrowserWindow | null = null;
+let lastGuestToolboxState: GuestToolboxState | null = null;
 
-function buildToolboxUrl(): string {
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-  if (!rendererUrl) {
-    return "";
+function resolveToolboxHtmlPath(): string {
+  const appPath = app.getAppPath();
+  const candidates = [
+    path.join(appPath, "src", "main", "toolbox", "guest-toolbox.html"),
+    path.join(appPath, "apps", "desktop", "src", "main", "toolbox", "guest-toolbox.html"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      fs.accessSync(candidate);
+      return candidate;
+    } catch {
+      // Try next candidate.
+    }
   }
-  const url = new URL(rendererUrl);
-  url.searchParams.set("view", "guest-toolbox");
-  return url.toString();
+
+  return candidates[0];
+}
+
+function readToolboxHtml(): string {
+  return fs.readFileSync(resolveToolboxHtmlPath(), "utf8");
 }
 
 export async function showGuestToolboxWindow(): Promise<void> {
   if (guestToolboxWindow && !guestToolboxWindow.isDestroyed()) {
+    if (guestToolboxWindow.isMinimized()) {
+      guestToolboxWindow.restore();
+    }
     guestToolboxWindow.show();
     guestToolboxWindow.focus();
+    guestToolboxWindow.moveTop();
+    if (lastGuestToolboxState) {
+      guestToolboxWindow.webContents.send("toolbox:guest-state", lastGuestToolboxState);
+    }
     return;
   }
 
@@ -46,20 +68,27 @@ export async function showGuestToolboxWindow(): Promise<void> {
     show: false,
   });
 
-  guestToolboxWindow.once("ready-to-show", () => {
-    guestToolboxWindow?.show();
-  });
-
   guestToolboxWindow.on("closed", () => {
     guestToolboxWindow = null;
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    await guestToolboxWindow.loadURL(buildToolboxUrl());
-  } else {
-    await guestToolboxWindow.loadFile(path.join(__dirname, "../../renderer/index.html"), {
-      query: { view: "guest-toolbox" },
-    });
+  guestToolboxWindow.webContents.on("did-finish-load", () => {
+    if (!guestToolboxWindow || guestToolboxWindow.isDestroyed() || !lastGuestToolboxState) {
+      return;
+    }
+    guestToolboxWindow.webContents.send("toolbox:guest-state", lastGuestToolboxState);
+  });
+
+  await guestToolboxWindow.loadURL("about:blank");
+  await guestToolboxWindow.webContents.executeJavaScript(
+    `document.open();document.write(${JSON.stringify(readToolboxHtml())});document.close();`,
+    true,
+  );
+  guestToolboxWindow.show();
+  guestToolboxWindow.focus();
+  guestToolboxWindow.moveTop();
+  if (lastGuestToolboxState) {
+    guestToolboxWindow.webContents.send("toolbox:guest-state", lastGuestToolboxState);
   }
 }
 
@@ -71,6 +100,7 @@ export function closeGuestToolboxWindow(): void {
 }
 
 export function updateGuestToolboxState(state: GuestToolboxState): void {
+  lastGuestToolboxState = state;
   if (!guestToolboxWindow || guestToolboxWindow.isDestroyed()) {
     return;
   }
@@ -78,7 +108,7 @@ export function updateGuestToolboxState(state: GuestToolboxState): void {
 }
 
 export function relayGuestToolboxAction(action: GuestToolboxAction): void {
-  const mainWindow = getMainWindow();
+  const mainWindow = guestToolboxWindow?.getParentWindow() ?? getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }

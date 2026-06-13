@@ -59,6 +59,10 @@ export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
     } else if (message.type === "remoteControl.grabbed") {
       // Guest took control without waiting for approval
       useSessionStore.getState().setControlState("controlAllowed");
+    } else if (message.type === "remoteControl.revoked") {
+      useSessionStore.getState().setControlState("controlRevoked");
+    } else if (message.type === "remoteControl.paused") {
+      useSessionStore.getState().setControlState("controlPaused");
     } else if (message.type === "ping") {
       dataChannelManager.sendControl({ type: "pong", timestamp: message.timestamp });
     }

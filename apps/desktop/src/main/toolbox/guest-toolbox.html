@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PairPair マーカーツール</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #09111d;
+        --panel: rgba(17, 25, 41, 0.96);
+        --line: rgba(255,255,255,0.12);
+        --text: #f2f7ff;
+        --muted: #8ea7c2;
+        --accent: #4cc9f0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 12px;
+        font-family: "Yu Gothic UI", "Noto Sans JP", sans-serif;
+        background:
+          radial-gradient(circle at top, rgba(76,201,240,0.16), transparent 32%),
+          linear-gradient(180deg, var(--bg), #050910);
+        color: var(--text);
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        box-shadow: 0 18px 36px rgba(0,0,0,0.28);
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.3);
+      }
+      .dot.active {
+        background: var(--accent);
+        box-shadow: 0 0 10px rgba(76, 201, 240, 0.7);
+      }
+      .name {
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .sub {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .section {
+        margin-top: 12px;
+      }
+      .section-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      button {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        padding: 7px 11px;
+        border-radius: 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button[data-selected="true"] {
+        border-color: var(--accent);
+        background: rgba(76, 201, 240, 0.16);
+        font-weight: 700;
+      }
+      button:disabled {
+        color: rgba(255,255,255,0.38);
+        cursor: default;
+      }
+      .swatches {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        padding: 4px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.05);
+      }
+      .swatch {
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.35);
+        padding: 0;
+      }
+      .swatch[data-selected="true"] {
+        border: 2px solid white;
+        box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <div class="header">
+        <div class="title">
+          <div id="dot" class="dot"></div>
+          <div>
+            <div class="name">マーカーツール</div>
+            <div id="subtitle" class="sub">描画待機 / 注釈なし</div>
+          </div>
+        </div>
+        <button title="映像を全画面表示にする" onclick="send({ type: 'toggle-fullscreen' })">全画面</button>
+      </div>
+
+      <div class="section">
+        <div class="section-label">表示</div>
+        <div class="row">
+          <button id="fit" title="映像全体が収まるように縮小表示" onclick="send({ type: 'set-display-mode', mode: 'fit' })">フィット</button>
+          <button id="native" title="共有画面を原寸に近い倍率で表示" onclick="send({ type: 'set-display-mode', mode: 'native' })">等倍</button>
+          <button id="wheel" title="スクロール方向を Windows 方式と Mac 方式で切り替える" onclick="send({ type: 'toggle-wheel-direction' })">ホイール</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">描画</div>
+        <div class="row">
+          <button id="marker" title="マーカー描画を ON/OFF する" onclick="send({ type: 'toggle-marker' })">マーカー</button>
+        </div>
+        <div id="colors" class="row" style="margin-top:8px;"></div>
+        <div id="widths" class="row" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">マーカー注釈</div>
+        <div class="row">
+          <button id="undo" title="最後に描いたマーカー線を 1 本だけ取り消す" onclick="send({ type: 'undo' })">1本戻す</button>
+          <button id="clear" title="描かれているマーカー注釈をすべて消す" onclick="send({ type: 'clear' })">注釈を全削除</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const COLORS = ["#ff6b6b", "#ffd166", "#06d6a0", "#4cc9f0", "#f72585", "#ffffff"];
+      const WIDTHS = [2, 4, 8, 12];
+      let state = null;
+
+      function send(action) {
+        window.pairpair.sendGuestToolboxAction(action).catch(console.error);
+      }
+
+      function renderSwatches() {
+        const colors = document.getElementById("colors");
+        const widths = document.getElementById("widths");
+        colors.className = "swatches";
+        widths.className = "swatches";
+        colors.innerHTML = COLORS.map((color) =>
+          '<button class="swatch" data-selected="' + (state && state.color === color) + '" style="background:' + color + '" title="色を変更" onclick="send({ type: \\'set-color\\', color: \\''
+          + color + '\\' })"></button>'
+        ).join("");
+        widths.innerHTML = WIDTHS.map((width) =>
+          '<button data-selected="' + (state && state.width === width) + '" title="線の太さを変更" onclick="send({ type: \\'set-width\\', width: '
+          + width + ' })">' + width + 'px</button>'
+        ).join("");
+      }
+
+      function render() {
+        if (!state) return;
+        document.getElementById("dot").classList.toggle("active", state.enabled);
+        document.getElementById("subtitle").textContent =
+          (state.enabled ? "描画中" : "描画待機") + " / " + (state.hasStrokes ? "注釈あり" : "注釈なし");
+        document.getElementById("fit").dataset.selected = String(state.displayMode === "fit");
+        document.getElementById("native").dataset.selected = String(state.displayMode === "native");
+        document.getElementById("marker").dataset.selected = String(state.enabled);
+        document.getElementById("marker").textContent = state.enabled ? "マーカーON" : "マーカーOFF";
+        document.getElementById("wheel").textContent = "ホイール: " + (state.wheelDirection === "standard" ? "Windows" : "Mac");
+        document.getElementById("undo").disabled = !state.canUndo;
+        document.getElementById("clear").disabled = !state.hasStrokes;
+        renderSwatches();
+      }
+
+      window.pairpair.onGuestToolboxState((nextState) => {
+        state = nextState;
+        render();
+      });
+    </script>
+  </body>
+</html>

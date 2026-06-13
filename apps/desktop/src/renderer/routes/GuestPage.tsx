@@ -150,19 +150,20 @@ export function GuestPage(): React.ReactElement {
       {requiresPassphrase && (
         <input
           ref={passphraseInputRef}
-          type="password"
+          type="text"
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
           placeholder="あいことば"
           maxLength={100}
           style={{
+            width: 220,
             padding: "10px 14px",
             fontSize: 16,
             background: "#2a2a3e",
             border: "2px solid #444",
             color: "#fff",
             borderRadius: 8,
-            width: 220,
+            fontFamily: "inherit",
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") void handleSubmitPassphrase();

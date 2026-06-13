@@ -122,7 +122,8 @@ export async function startHostScreenShare(
       width: { max: maxDim },
       height: { max: maxDim },
       frameRate: { ideal: qualityPreset?.fps ?? 30 },
-    },
+      cursor: "always",
+    } as MediaTrackConstraints,
   });
 
   localStream.getVideoTracks().forEach((track) => {

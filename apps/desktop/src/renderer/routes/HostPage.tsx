@@ -417,12 +417,21 @@ export function HostPage(): React.ReactElement {
       <div style={{ marginBottom: 24 }}>
         <h3 style={{ marginBottom: 12 }}>あいことば（任意）</h3>
         <input
-          type="password"
+          type="text"
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
           maxLength={100}
           placeholder="未指定ならコードだけで参加できます"
-          style={{ width: "100%", padding: "9px 12px", background: "#2a2a3e", color: "#fff", border: "1px solid #444", borderRadius: 6 }}
+          style={{
+            width: "100%",
+            padding: "9px 12px",
+            background: "#2a2a3e",
+            color: "#fff",
+            border: "1px solid #444",
+            borderRadius: 6,
+            fontSize: 14,
+            fontFamily: "inherit",
+          }}
         />
       </div>
 

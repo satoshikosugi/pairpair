@@ -478,6 +478,7 @@ export function SessionPage(): React.ReactElement {
     setShowRoleSwitchPicker(false);
     setRoleSwitchInProgress(true);
     useSessionStore.getState().setRoleSwitchInProgress(true);
+    signalingClient.send({ type: "session.roleSwitch.prepare" });
     clearRoleSwitchTimeout();
     roleSwitchTimeoutRef.current = window.setTimeout(() => {
       setRoleSwitchInProgress(false);

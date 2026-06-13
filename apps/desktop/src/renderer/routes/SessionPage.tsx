@@ -321,13 +321,31 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setHostToken(null);
     useSessionStore.getState().setGuestToken(nextGuestToken);
 
-    signalingClient.connect(signalingUrl, sessionId, nextGuestToken, "guest");
-
     await createPeerConnectionAsGuest();
+    signalingClient.connect(signalingUrl, sessionId, nextGuestToken, "guest");
+    signalingClient.on("session.close", (message) => {
+      if (useSessionStore.getState().roleSwitchInProgress) return;
+      const payload = message.payload as { reason?: string } | undefined;
+      if (payload?.reason === "host_closed") {
+        finalizeSession();
+      }
+    });
+
+    signalingClient.on("rtc.offer", (msg) => {
+      const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
+      void handleOffer(sdp).catch(console.error);
+    });
+
+    signalingClient.on("rtc.ice", (msg) => {
+      const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
+      void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
+    });
+
     guestPeerAuthenticator.start(
       code,
       () => {
         setRoleSwitchInProgress(false);
+        useSessionStore.getState().setRoleSwitchInProgress(false);
         setError("役割切替後の認証で追加パスフレーズが要求されました。現在の実装では再入力に未対応です。");
       },
       () => {
@@ -340,17 +358,7 @@ export function SessionPage(): React.ReactElement {
         setError(`役割切替後のゲスト認証に失敗しました: ${reason}`);
       },
     );
-
-    signalingClient.on("rtc.offer", (msg) => {
-      const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
-      void handleOffer(sdp).catch(console.error);
-    });
-
-    signalingClient.on("rtc.ice", (msg) => {
-      const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
-      void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
-    });
-  }, [code, guestDeviceName, preparePeerReconnection, sessionId, setError, signalingUrl]);
+  }, [code, finalizeSession, guestDeviceName, preparePeerReconnection, sessionId, setError, signalingUrl]);
 
   const reconnectAsHostAfterRoleSwitch = useCallback(async (nextHostToken: string, source: ScreenSource) => {
     if (!sessionId || !signalingUrl || !guestToken || !code) {
@@ -375,6 +383,13 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setGuestToken(guestToken);
 
     signalingClient.connect(signalingUrl, sessionId, nextHostToken, "host");
+    signalingClient.on("session.close", (message) => {
+      if (useSessionStore.getState().roleSwitchInProgress) return;
+      const payload = message.payload as { reason?: string } | undefined;
+      if (payload?.reason === "guest_disconnected") {
+        handleGuestDisconnected();
+      }
+    });
 
     signalingClient.on("guest.joined", () => {
       void createPeerConnectionAsHost()
@@ -431,6 +446,7 @@ export function SessionPage(): React.ReactElement {
     sessionId,
     setError,
     signalingUrl,
+    handleGuestDisconnected,
   ]);
 
   const startGuestToHostRoleSwitch = useCallback(async (source: ScreenSource) => {

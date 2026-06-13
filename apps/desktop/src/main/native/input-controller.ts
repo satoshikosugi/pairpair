@@ -1,8 +1,9 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { screen } from "electron";
 import log from "electron-log";
 import type { InputEvent } from "@pairpair/shared";
-import * as nativeInput from "@pairpair/native-input";
-import { DOM_KEY_TO_VK, isNativeInputAvailable } from "@pairpair/native-input";
+import { DOM_KEY_TO_VK } from "@pairpair/native-input";
 
 export interface CaptureArea {
   x: number;
@@ -14,6 +15,86 @@ export interface CaptureArea {
 
 let currentCaptureArea: CaptureArea | null = null;
 let lastRemoteInputAt = 0;
+let nativeInputModule: NativeInputModule | null = null;
+let nativeInputLoadAttempted = false;
+let nativeInputLoadError: string | null = null;
+
+interface NativeInputModule {
+  moveMouse(x: number, y: number): void;
+  mouseButton(button: number, down: boolean, x: number, y: number): void;
+  mouseScroll(deltaX: number, deltaY: number, x: number, y: number): void;
+  keyDown(vkCode: number): void;
+  keyUp(vkCode: number): void;
+  typeText(text: string): void;
+}
+
+function getNativeBinaryName(): string | null {
+  if (process.platform === "win32") {
+    if (process.arch === "x64") return "index.win32-x64-msvc.node";
+    if (process.arch === "ia32") return "index.win32-ia32-msvc.node";
+    if (process.arch === "arm64") return "index.win32-arm64-msvc.node";
+  }
+
+  if (process.platform === "darwin") {
+    if (process.arch === "x64") return "index.darwin-x64.node";
+    if (process.arch === "arm64") return "index.darwin-arm64.node";
+  }
+
+  return null;
+}
+
+function getNativeModuleCandidates(): string[] {
+  const binaryName = getNativeBinaryName();
+  if (!binaryName) return [];
+
+  const candidates = new Set<string>();
+
+  try {
+    const packageEntry = require.resolve("@pairpair/native-input");
+    const packageRoot = path.dirname(path.dirname(packageEntry));
+    candidates.add(path.join(packageRoot, binaryName));
+  } catch (err) {
+    nativeInputLoadError = `Failed to resolve @pairpair/native-input: ${String(err)}`;
+  }
+
+  candidates.add(path.join(process.cwd(), "node_modules", "@pairpair", "native-input", binaryName));
+  candidates.add(path.join(process.cwd(), "..", "..", "packages", "native-input", binaryName));
+
+  if (process.resourcesPath) {
+    candidates.add(path.join(process.resourcesPath, "native-input", binaryName));
+  }
+
+  return [...candidates];
+}
+
+function getNativeInputModule(): NativeInputModule | null {
+  if (nativeInputLoadAttempted) return nativeInputModule;
+  nativeInputLoadAttempted = true;
+
+  const candidates = getNativeModuleCandidates();
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) {
+      continue;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      nativeInputModule = require(candidate) as NativeInputModule;
+      log.info({ candidate }, "Native input module loaded");
+      nativeInputLoadError = null;
+      return nativeInputModule;
+    } catch (err) {
+      nativeInputLoadError = `Failed to require ${candidate}: ${err instanceof Error ? err.stack ?? err.message : String(err)}`;
+      log.error({ candidate, err }, "Failed to load native input candidate");
+    }
+  }
+
+  if (!nativeInputLoadError) {
+    nativeInputLoadError = `No native input binary found. candidates=${candidates.join(", ")}`;
+  }
+  log.error(nativeInputLoadError);
+  return null;
+}
 
 export function setCaptureArea(area: CaptureArea): void {
   currentCaptureArea = area;
@@ -49,9 +130,13 @@ function normalizedToScreen(normalizedX: number, normalizedY: number, area: Capt
 
 export function injectInputEvent(event: InputEvent): boolean {
   const area = currentCaptureArea ?? getCaptureAreaFromDisplay();
+  const nativeInput = getNativeInputModule();
 
-  if (!isNativeInputAvailable()) {
-    log.error("Native input module is unavailable; input injection skipped", { eventType: event.type });
+  if (!nativeInput) {
+    log.error("Native input module is unavailable; input injection skipped", {
+      eventType: event.type,
+      loadError: nativeInputLoadError,
+    });
     return false;
   }
 

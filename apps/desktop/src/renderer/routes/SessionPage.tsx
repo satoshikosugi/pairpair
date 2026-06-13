@@ -723,6 +723,10 @@ export function SessionPage(): React.ReactElement {
   }, [clearFullscreenRequest, clearRoleSwitchTimeout, handleDisconnect, handleReleaseControl, isHost]);
 
   useEffect(() => {
+    void window.pairpair.setSessionRole(role).catch(console.error);
+  }, [role]);
+
+  useEffect(() => {
     if (isHost) return;
 
     const handleActivity = () => {

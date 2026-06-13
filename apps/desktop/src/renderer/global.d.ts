@@ -23,6 +23,7 @@ declare global {
       injectInput: (event: InputEvent) => Promise<boolean>;
       registerShortcuts: (isHost: boolean) => Promise<void>;
       unregisterShortcuts: () => Promise<void>;
+      setSessionRole: (role: "host" | "guest" | null) => Promise<boolean>;
       setGuestFullscreen: (fullscreen: boolean) => Promise<boolean>;
       onShortcut: (callback: (action: string) => void) => void;
       removeShortcutListener: () => void;

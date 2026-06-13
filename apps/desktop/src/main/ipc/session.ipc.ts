@@ -1,6 +1,7 @@
 import { ipcMain, globalShortcut } from "electron";
 import log from "electron-log";
 import { getMainWindow, sendToRenderer } from "../window";
+import { setupApplicationMenu } from "../menu";
 
 export function setupSessionIpc(): void {
   ipcMain.handle("session:registerShortcuts", (_event, isHost: boolean) => {
@@ -44,7 +45,12 @@ export function setupSessionIpc(): void {
     globalShortcut.unregisterAll();
   });
 
-  ipcMain.handle("session:setGuestFullscreen", (_event, fullscreen: boolean) => {
+  ipcMain.handle("session:setRole", (_event, role: "host" | "guest" | null) => {
+    setupApplicationMenu(role);
+    return true;
+  });
+
+  ipcMain.handle("session:setGuestFullscreen", async (_event, fullscreen: boolean) => {
     const win = getMainWindow();
     if (!win) return false;
 
@@ -55,7 +61,33 @@ export function setupSessionIpc(): void {
 
     win.setAutoHideMenuBar(fullscreen);
     win.setMenuBarVisibility(!fullscreen);
-    win.setFullScreen(fullscreen);
-    return true;
+
+    const actualFullscreen = await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const targetEvent = fullscreen ? "enter-full-screen" : "leave-full-screen";
+      const oppositeEvent = fullscreen ? "leave-full-screen" : "enter-full-screen";
+      const cleanup = () => {
+        win.removeListener(targetEvent, handleTarget);
+        win.removeListener(oppositeEvent, handleOpposite);
+      };
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+      const handleTarget = () => finish(true);
+      const handleOpposite = () => finish(false);
+
+      win.once(targetEvent, handleTarget);
+      win.once(oppositeEvent, handleOpposite);
+      win.setFullScreen(fullscreen);
+
+      setTimeout(() => {
+        finish(win.isFullScreen() === fullscreen);
+      }, 1200);
+    });
+    sendToRenderer("session:fullscreen-changed", actualFullscreen ? fullscreen : win.isFullScreen());
+    return actualFullscreen;
   });
 }

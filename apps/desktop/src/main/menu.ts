@@ -3,6 +3,7 @@ import { getMainWindow } from "./window";
 import { sendToRenderer } from "./window";
 
 type HelpGuideKind = "host" | "guest";
+type MenuRole = "host" | "guest" | null;
 
 const GUIDE_TITLES: Record<HelpGuideKind, string> = {
   host: "ホストの使い方",
@@ -215,7 +216,7 @@ function openMainWindowDevTools(): void {
   win.webContents.openDevTools({ mode: "detach" });
 }
 
-export function setupApplicationMenu(): void {
+export function setupApplicationMenu(role: MenuRole = null): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -225,15 +226,6 @@ export function setupApplicationMenu(): void {
         {
           label: "終了",
           click: () => app.quit(),
-        },
-      ],
-    },
-    {
-      label: "役割切替",
-      submenu: [
-        {
-          label: "自分をホストに切り替え",
-          click: () => sendToRenderer("session:promote-guest-to-host"),
         },
       ],
     },
@@ -256,6 +248,18 @@ export function setupApplicationMenu(): void {
       ],
     },
   ];
+
+  if (role === "guest") {
+    template.splice(1, 0, {
+      label: "役割切替",
+      submenu: [
+        {
+          label: "自分をホストに切り替え",
+          click: () => sendToRenderer("session:promote-guest-to-host"),
+        },
+      ],
+    });
+  }
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }

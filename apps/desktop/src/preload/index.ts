@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("pairpair", {
   // Session shortcuts
   registerShortcuts: (isHost: boolean) => ipcRenderer.invoke("session:registerShortcuts", isHost),
   unregisterShortcuts: () => ipcRenderer.invoke("session:unregisterShortcuts"),
+  setSessionRole: (role: "host" | "guest" | null) => ipcRenderer.invoke("session:setRole", role),
   setGuestFullscreen: (fullscreen: boolean) => ipcRenderer.invoke("session:setGuestFullscreen", fullscreen),
 
   // Event listeners
@@ -95,6 +96,7 @@ declare global {
       injectInput: (event: InputEvent) => Promise<boolean>;
       registerShortcuts: (isHost: boolean) => Promise<void>;
       unregisterShortcuts: () => Promise<void>;
+      setSessionRole: (role: "host" | "guest" | null) => Promise<boolean>;
       setGuestFullscreen: (fullscreen: boolean) => Promise<boolean>;
       onShortcut: (callback: (action: string) => void) => void;
       removeShortcutListener: () => void;

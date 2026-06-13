@@ -7,6 +7,8 @@ interface SessionConnections {
   guestWs?: WebSocket;
   hostSessionId?: string;
   guestSessionId?: string;
+  roleSwitchUntil?: number;
+  roleSwitchTimer?: NodeJS.Timeout;
 }
 
 const registry = new Map<string, SessionConnections>();
@@ -68,9 +70,30 @@ export function sendToGuest(sessionId: string, message: unknown): boolean {
   return false;
 }
 
+export function markRoleSwitchInProgress(sessionId: string, graceMs = 15000): void {
+  const entry = getOrCreateEntry(sessionId);
+  entry.roleSwitchUntil = Date.now() + graceMs;
+  if (entry.roleSwitchTimer) {
+    clearTimeout(entry.roleSwitchTimer);
+  }
+  entry.roleSwitchTimer = setTimeout(() => {
+    void finalizeRoleSwitchTimeout(sessionId);
+  }, graceMs);
+}
+
+function isRoleSwitchInProgress(entry: SessionConnections | undefined): boolean {
+  return Boolean(entry?.roleSwitchUntil && entry.roleSwitchUntil > Date.now());
+}
+
 async function handleHostDisconnect(sessionId: string): Promise<void> {
   const entry = registry.get(sessionId);
   if (!entry) return;
+
+  if (isRoleSwitchInProgress(entry)) {
+    entry.hostWs = undefined;
+    await cleanupIfEmpty(sessionId);
+    return;
+  }
 
   // Notify guest if connected
   sendToGuest(sessionId, {
@@ -88,6 +111,12 @@ async function handleGuestDisconnect(sessionId: string): Promise<void> {
   const entry = registry.get(sessionId);
   if (!entry) return;
 
+  if (isRoleSwitchInProgress(entry)) {
+    entry.guestWs = undefined;
+    await cleanupIfEmpty(sessionId);
+    return;
+  }
+
   // Notify host if connected
   sendToHost(sessionId, {
     type: "session.close",
@@ -101,7 +130,13 @@ async function handleGuestDisconnect(sessionId: string): Promise<void> {
 
 async function cleanupIfEmpty(sessionId: string): Promise<void> {
   const entry = registry.get(sessionId);
+  if (entry && !entry.hostWs && !entry.guestWs && isRoleSwitchInProgress(entry)) {
+    return;
+  }
   if (entry && !entry.hostWs && !entry.guestWs) {
+    if (entry.roleSwitchTimer) {
+      clearTimeout(entry.roleSwitchTimer);
+    }
     registry.delete(sessionId);
     try {
       await closeSession(sessionId);
@@ -112,5 +147,31 @@ async function cleanupIfEmpty(sessionId: string): Promise<void> {
 }
 
 export function removeSession(sessionId: string): void {
+  const entry = registry.get(sessionId);
+  if (entry?.roleSwitchTimer) {
+    clearTimeout(entry.roleSwitchTimer);
+  }
   registry.delete(sessionId);
+}
+
+async function finalizeRoleSwitchTimeout(sessionId: string): Promise<void> {
+  const entry = registry.get(sessionId);
+  if (!entry) return;
+  entry.roleSwitchUntil = undefined;
+  entry.roleSwitchTimer = undefined;
+
+  if (entry.hostWs || entry.guestWs) {
+    sendToHost(sessionId, {
+      type: "session.close",
+      sessionId,
+      payload: { reason: "error" },
+    });
+    sendToGuest(sessionId, {
+      type: "session.close",
+      sessionId,
+      payload: { reason: "error" },
+    });
+  }
+
+  await cleanupIfEmpty(sessionId);
 }

@@ -20,6 +20,7 @@ interface SessionState {
   signalingUrl: string | null;
   hostToken: string | null;
   guestToken: string | null;
+  roleSwitchInProgress: boolean;
   selectedSourceId: string | null;
   expiresAt: string | null;
   currentQualityPreset: QualityPresetName;
@@ -39,6 +40,7 @@ interface SessionState {
   setSignalingUrl: (url: string | null) => void;
   setHostToken: (token: string | null) => void;
   setGuestToken: (token: string | null) => void;
+  setRoleSwitchInProgress: (active: boolean) => void;
   setSelectedSourceId: (id: string | null) => void;
   setExpiresAt: (at: string | null) => void;
   setCurrentQualityPreset: (preset: QualityPresetName, custom?: Partial<QualityPreset>) => void;
@@ -62,6 +64,7 @@ const initialState = {
   signalingUrl: null,
   hostToken: null,
   guestToken: null,
+  roleSwitchInProgress: false,
   selectedSourceId: null,
   expiresAt: null,
   currentQualityPreset: "Balanced" as QualityPresetName,
@@ -86,6 +89,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setSignalingUrl: (url) => set({ signalingUrl: url }),
   setHostToken: (token) => set({ hostToken: token }),
   setGuestToken: (token) => set({ guestToken: token }),
+  setRoleSwitchInProgress: (active) => set({ roleSwitchInProgress: active }),
   setSelectedSourceId: (id) => set({ selectedSourceId: id }),
   setExpiresAt: (at) => set({ expiresAt: at }),
   setCurrentQualityPreset: (preset, custom) => set({

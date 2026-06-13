@@ -6,6 +6,7 @@ import {
   sendToHost,
   sendToGuest,
   removeSession,
+  markRoleSwitchInProgress,
 } from "./session-registry";
 import { getSession, closeSession } from "../services/session-service";
 
@@ -126,6 +127,10 @@ async function handleMessage(
 
     case "session.close":
       await handleSessionClose(sessionId, ctx.role);
+      break;
+
+    case "session.roleSwitch.prepare":
+      markRoleSwitchInProgress(sessionId);
       break;
 
     default:

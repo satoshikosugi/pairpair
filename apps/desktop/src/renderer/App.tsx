@@ -16,6 +16,9 @@ export default function App(): React.ReactElement {
 
   useEffect(() => {
     onSessionEnded(() => {
+      if (useSessionStore.getState().roleSwitchInProgress) {
+        return;
+      }
       setSessionEndedMessage("接続が切断されました");
       reset();
       navigate("home");

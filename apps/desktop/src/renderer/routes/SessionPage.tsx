@@ -289,6 +289,7 @@ export function SessionPage(): React.ReactElement {
 
   const preparePeerReconnection = useCallback(() => {
     clearRoleSwitchTimeout();
+    signalingClient.send({ type: "session.roleSwitch.prepare" });
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();
     activeStrokeRef.current = null;
@@ -331,9 +332,11 @@ export function SessionPage(): React.ReactElement {
       },
       () => {
         setRoleSwitchInProgress(false);
+        useSessionStore.getState().setRoleSwitchInProgress(false);
       },
       (reason) => {
         setRoleSwitchInProgress(false);
+        useSessionStore.getState().setRoleSwitchInProgress(false);
         setError(`役割切替後のゲスト認証に失敗しました: ${reason}`);
       },
     );
@@ -382,15 +385,18 @@ export function SessionPage(): React.ReactElement {
               void startHostScreenShare(source.id, adaptiveMode ? adaptivePreset : preset)
                 .then(() => {
                   setRoleSwitchInProgress(false);
+                  useSessionStore.getState().setRoleSwitchInProgress(false);
                   if (adaptiveMode) enableAdaptive(adaptiveResPreset);
                 })
                 .catch((err) => {
                   setRoleSwitchInProgress(false);
+                  useSessionStore.getState().setRoleSwitchInProgress(false);
                   setError(`役割切替後の画面共有開始に失敗しました: ${String(err)}`);
                 });
             },
             (reason) => {
               setRoleSwitchInProgress(false);
+              useSessionStore.getState().setRoleSwitchInProgress(false);
               closePeerConnection();
               setError(`役割切替後のホスト認証に失敗しました: ${reason}`);
             },
@@ -398,6 +404,7 @@ export function SessionPage(): React.ReactElement {
         })
         .catch((err) => {
           setRoleSwitchInProgress(false);
+          useSessionStore.getState().setRoleSwitchInProgress(false);
           setError(`役割切替後のP2P接続に失敗しました: ${String(err)}`);
         });
     });
@@ -436,9 +443,11 @@ export function SessionPage(): React.ReactElement {
     pendingRoleSwitchSourceRef.current = source;
     setShowRoleSwitchPicker(false);
     setRoleSwitchInProgress(true);
+    useSessionStore.getState().setRoleSwitchInProgress(true);
     clearRoleSwitchTimeout();
     roleSwitchTimeoutRef.current = window.setTimeout(() => {
       setRoleSwitchInProgress(false);
+      useSessionStore.getState().setRoleSwitchInProgress(false);
       pendingRoleSwitchSourceRef.current = null;
       setError("ホスト切替の応答がタイムアウトしました");
       roleSwitchTimeoutRef.current = null;
@@ -931,11 +940,13 @@ export function SessionPage(): React.ReactElement {
         case "session.roleSwitch.request": {
           if (!isHost || !hostToken) return;
           setRoleSwitchInProgress(true);
+          useSessionStore.getState().setRoleSwitchInProgress(true);
           clearRoleSwitchTimeout();
           dataChannelManager.sendControl({ type: "session.roleSwitch.ready", hostToken });
           window.setTimeout(() => {
             void reconnectAsGuestAfterRoleSwitch(message.guestToken).catch((err) => {
               setRoleSwitchInProgress(false);
+              useSessionStore.getState().setRoleSwitchInProgress(false);
               setError(`役割切替に失敗しました: ${String(err)}`);
             });
           }, 150);
@@ -950,6 +961,7 @@ export function SessionPage(): React.ReactElement {
           window.setTimeout(() => {
             void reconnectAsHostAfterRoleSwitch(message.hostToken, source).catch((err) => {
               setRoleSwitchInProgress(false);
+              useSessionStore.getState().setRoleSwitchInProgress(false);
               setError(`役割切替に失敗しました: ${String(err)}`);
             });
           }, 150);
@@ -984,6 +996,7 @@ export function SessionPage(): React.ReactElement {
 
   useEffect(() => {
     const handleSessionClose = (message: Record<string, unknown>) => {
+      if (useSessionStore.getState().roleSwitchInProgress) return;
       const payload = message.payload as { reason?: string } | undefined;
       if (!isHost || payload?.reason !== "guest_disconnected") return;
       handleGuestDisconnected();

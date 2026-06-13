@@ -49,6 +49,8 @@ export interface SessionClosePayload {
 
 export interface SessionCloseMessage extends BaseMessage<"session.close", SessionClosePayload> {}
 
+export interface SessionRoleSwitchPrepareMessage extends BaseMessage<"session.roleSwitch.prepare"> {}
+
 export type SignalingMessage =
   | HostRegisterMessage
   | GuestRegisterMessage
@@ -56,4 +58,5 @@ export type SignalingMessage =
   | RtcOfferMessage
   | RtcAnswerMessage
   | RtcIceMessage
-  | SessionCloseMessage;
+  | SessionCloseMessage
+  | SessionRoleSwitchPrepareMessage;

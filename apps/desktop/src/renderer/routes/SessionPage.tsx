@@ -11,8 +11,10 @@ import type {
   KeyboardUpEvent,
   QualityPreset,
   QualityPresetName,
+  SpotlightIndicator,
+  TextInputEvent,
 } from "@pairpair/shared";
-import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
+import { QUALITY_PRESETS, calcBitrateMbps, hasInteractiveControl } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
 import { useSettingsStore } from "../store/settings-store";
@@ -53,6 +55,7 @@ const FULLSCREEN_REQUEST_TIMEOUT_MS = 1500;
 const ROLE_SWITCH_READY_RETRY_MS = 250;
 const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 const ROLE_SWITCH_COMPLETION_TIMEOUT_MS = 15000;
+const SPOTLIGHT_DURATION_MS = 3000;
 
 function getToolboxBounds(
   panelWidth: number,
@@ -121,10 +124,13 @@ export function SessionPage(): React.ReactElement {
     guestToken,
     connectionState,
     controlState,
+    permissionPresetId,
     currentQualityPreset,
     customQualityPreset,
     adaptiveModeActive,
     adaptiveBasePreset,
+    sessionPermissions,
+    clipboardHistory,
   } = useSessionStore();
   const { pairproProfiles, wheelDirection, saveToElectron } = useSettingsStore();
 
@@ -143,6 +149,7 @@ export function SessionPage(): React.ReactElement {
   const [markerColor, setMarkerColor] = useState("#ff6b6b");
   const [markerWidth, setMarkerWidth] = useState(4);
   const [remoteCursor, setRemoteCursor] = useState<GuestCursorIndicator | null>(null);
+  const [spotlight, setSpotlight] = useState<SpotlightIndicator | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenHintVisible, setFullscreenHintVisible] = useState(false);
   const [displayMode, setDisplayMode] = useState<"fit" | "native">("fit");
@@ -163,6 +170,8 @@ export function SessionPage(): React.ReactElement {
   const activeStrokeRef = useRef<string | null>(null);
   const annotationsRef = useRef<AnnotationStroke[]>([]);
   const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
+  const spotlightRef = useRef<SpotlightIndicator | null>(null);
+  const lastPointerPointRef = useRef<AnnotationPoint | null>(null);
   const toolboxDragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const toolboxElementRef = useRef<HTMLDivElement | null>(null);
   const pendingRoleSwitchSourceRef = useRef<ScreenSource | null>(null);
@@ -176,6 +185,7 @@ export function SessionPage(): React.ReactElement {
   const fullscreenRef = useRef(fullscreen);
   const fullscreenRequestPendingRef = useRef(false);
   const fullscreenRequestTimerRef = useRef<number | null>(null);
+  const spotlightTimerRef = useRef<number | null>(null);
 
   const STATE_LABEL: Record<string, string> = {
     idle: "アイドル",
@@ -191,13 +201,33 @@ export function SessionPage(): React.ReactElement {
   );
 
   const syncHostOverlay = useCallback(
-    (nextStrokes: AnnotationStroke[], nextCursor: GuestCursorIndicator | null) => {
+    (nextStrokes: AnnotationStroke[], nextCursor: GuestCursorIndicator | null, nextSpotlight: SpotlightIndicator | null = spotlightRef.current) => {
       if (!isHost) return;
-      const state: HostOverlayState = { strokes: nextStrokes, guestCursor: nextCursor };
+      const state: HostOverlayState = { strokes: nextStrokes, guestCursor: nextCursor, spotlight: nextSpotlight };
       void window.pairpair.updateHostOverlay(state).catch(console.error);
     },
     [isHost],
   );
+
+  const setSpotlightWithTimeout = useCallback((nextSpotlight: SpotlightIndicator | null) => {
+    if (spotlightTimerRef.current !== null) {
+      window.clearTimeout(spotlightTimerRef.current);
+      spotlightTimerRef.current = null;
+    }
+
+    spotlightRef.current = nextSpotlight;
+    setSpotlight(nextSpotlight);
+    syncHostOverlay(annotationsRef.current, remoteCursorRef.current, nextSpotlight);
+
+    if (nextSpotlight?.visible) {
+      spotlightTimerRef.current = window.setTimeout(() => {
+        spotlightRef.current = null;
+        setSpotlight(null);
+        syncHostOverlay(annotationsRef.current, remoteCursorRef.current, null);
+        spotlightTimerRef.current = null;
+      }, SPOTLIGHT_DURATION_MS);
+    }
+  }, [syncHostOverlay]);
 
   const setCursorWithTimeout = useCallback(
     (cursor: GuestCursorIndicator | null) => {
@@ -272,12 +302,14 @@ export function SessionPage(): React.ReactElement {
     activeStrokeRef.current = null;
     annotationsRef.current = [];
     remoteCursorRef.current = null;
+    spotlightRef.current = null;
 
     setAnnotations([]);
     setRemoteCursor(null);
+    setSpotlight(null);
     setMarkerEnabled(false);
 
-    syncHostOverlay([], null);
+    syncHostOverlay([], null, null);
 
     useSessionStore.getState().setControlState("viewOnly");
     useSessionStore.getState().setConnectionState("disconnected");
@@ -370,8 +402,10 @@ export function SessionPage(): React.ReactElement {
     activeStrokeRef.current = null;
     annotationsRef.current = [];
     remoteCursorRef.current = null;
+    spotlightRef.current = null;
     setAnnotations([]);
     setRemoteCursor(null);
+    setSpotlight(null);
     setMarkerEnabled(false);
     closePeerConnection();
     if (controlMessageHandlerRef.current) {
@@ -586,6 +620,7 @@ export function SessionPage(): React.ReactElement {
   }, [syncHostOverlay]);
 
   const beginMarkerStroke = useCallback((point: AnnotationPoint) => {
+    if (!sessionPermissions.annotation) return;
     const strokeId = crypto.randomUUID();
     activeStrokeRef.current = strokeId;
     const stroke: AnnotationStroke = {
@@ -610,35 +645,42 @@ export function SessionPage(): React.ReactElement {
       },
       point,
     });
-  }, [markerColor, markerWidth]);
+  }, [markerColor, markerWidth, sessionPermissions.annotation]);
 
   const appendMarkerStroke = useCallback((point: AnnotationPoint) => {
+    if (!sessionPermissions.annotation) return;
     const strokeId = activeStrokeRef.current;
     if (!strokeId) return;
     upsertStrokePoint(strokeId, point);
     dataChannelManager.sendControl({ type: "annotation.stroke.append", strokeId, point });
-  }, [upsertStrokePoint]);
+  }, [sessionPermissions.annotation, upsertStrokePoint]);
 
   const endMarkerStroke = useCallback(() => {
+    if (!sessionPermissions.annotation) {
+      activeStrokeRef.current = null;
+      return;
+    }
     if (!activeStrokeRef.current) return;
     dataChannelManager.sendControl({ type: "annotation.stroke.end", strokeId: activeStrokeRef.current });
     activeStrokeRef.current = null;
-  }, []);
+  }, [sessionPermissions.annotation]);
 
   const handleUndoAnnotation = useCallback(() => {
+    if (!sessionPermissions.annotation) return;
     setAnnotations((prev) => {
       const next = prev.slice(0, -1);
       syncHostOverlay(next, remoteCursorRef.current);
       return next;
     });
     dataChannelManager.sendControl({ type: "annotation.undo" });
-  }, [syncHostOverlay]);
+  }, [sessionPermissions.annotation, syncHostOverlay]);
 
   const handleClearAnnotations = useCallback(() => {
+    if (!sessionPermissions.annotation) return;
     setAnnotations([]);
     syncHostOverlay([], remoteCursorRef.current);
     dataChannelManager.sendControl({ type: "annotation.clear" });
-  }, [syncHostOverlay]);
+  }, [sessionPermissions.annotation, syncHostOverlay]);
 
   const handleHoverPreview = useCallback((point: AnnotationPoint | null) => {
     if (controlState === "controlAllowed") return;
@@ -661,6 +703,47 @@ export function SessionPage(): React.ReactElement {
     };
     dataChannelManager.sendControl({ type: "guest.cursor", cursor });
   }, [controlState]);
+
+  const sendClipboardText = useCallback((text: string) => {
+    if (!text || !sessionPermissions.clipboard) return;
+    const timestamp = Date.now();
+    const event: TextInputEvent = { type: "text.input", text };
+    if (adaptiveMode) {
+      adaptiveQualityController.onInputEvent(event);
+    }
+    dataChannelManager.sendInput(event);
+    dataChannelManager.sendControl({
+      type: "clipboard.snippet",
+      text,
+      senderRole: isHost ? "host" : "guest",
+      timestamp,
+    });
+    useSessionStore.getState().addClipboardHistoryEntry({
+      id: `${timestamp}-sent`,
+      text,
+      direction: "sent",
+      peerRole: isHost ? "guest" : "host",
+      createdAt: timestamp,
+    });
+  }, [adaptiveMode, isHost, sessionPermissions.clipboard]);
+
+  const receiveClipboardText = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text).catch(console.error);
+  }, []);
+
+  const sendSpotlight = useCallback(() => {
+    if (isHost) return;
+    const cursor = lastPointerPointRef.current;
+    const nextSpotlight: SpotlightIndicator = {
+      x: cursor?.x ?? 0.5,
+      y: cursor?.y ?? 0.5,
+      label: "ここを見て",
+      visible: true,
+      timestamp: Date.now(),
+    };
+    setSpotlightWithTimeout(nextSpotlight);
+    dataChannelManager.sendControl({ type: "spotlight.show", spotlight: nextSpotlight });
+  }, [isHost, setSpotlightWithTimeout]);
 
   const toggleGuestFullscreen = useCallback(() => {
     if (fullscreenRequestPendingRef.current) return;
@@ -748,6 +831,10 @@ export function SessionPage(): React.ReactElement {
       }
       if (toolboxIdleTimerRef.current !== null) {
         window.clearTimeout(toolboxIdleTimerRef.current);
+      }
+      if (spotlightTimerRef.current !== null) {
+        window.clearTimeout(spotlightTimerRef.current);
+        spotlightTimerRef.current = null;
       }
       clearFullscreenRequest();
       clearRoleSwitchCompletionTimeout();
@@ -930,8 +1017,14 @@ export function SessionPage(): React.ReactElement {
       fullscreen={fullscreen}
       controlActive={!isHost && controlState === "controlAllowed"}
       minimized={toolboxMinimized}
-      onToggle={() => setMarkerEnabled((prev) => !prev)}
-      onEnable={() => setMarkerEnabled(true)}
+      onToggle={() => {
+        if (!sessionPermissions.annotation) return;
+        setMarkerEnabled((prev) => !prev);
+      }}
+      onEnable={() => {
+        if (!sessionPermissions.annotation) return;
+        setMarkerEnabled(true);
+      }}
       onDisplayModeChange={setDisplayMode}
       onWheelDirectionChange={(direction) => {
         void saveToElectron("wheelDirection", direction);
@@ -940,9 +1033,10 @@ export function SessionPage(): React.ReactElement {
       onWidthChange={setMarkerWidth}
       onUndo={handleUndoAnnotation}
       onClear={handleClearAnnotations}
-      canUndo={annotations.length > 0}
-      hasStrokes={annotations.length > 0}
+      canUndo={sessionPermissions.annotation && annotations.length > 0}
+      hasStrokes={sessionPermissions.annotation && annotations.length > 0}
       onToggleFullscreen={toggleGuestFullscreen}
+      onSpotlight={sendSpotlight}
       onToggleMinimized={() => setToolboxMinimized((prev) => !prev)}
       onReturnControl={handleReleaseControl}
       dragHandleProps={{ onPointerDown: handleToolboxDragStart }}
@@ -1025,6 +1119,17 @@ export function SessionPage(): React.ReactElement {
   }, [remoteCursor]);
 
   useEffect(() => {
+    spotlightRef.current = spotlight;
+  }, [spotlight]);
+
+  useEffect(() => {
+    if (!sessionPermissions.annotation) {
+      setMarkerEnabled(false);
+      activeStrokeRef.current = null;
+    }
+  }, [sessionPermissions.annotation]);
+
+  useEffect(() => {
     if (isHost || controlState !== "controlAllowed") return;
     const hidden: GuestCursorIndicator = {
       x: remoteCursorRef.current?.x ?? 0,
@@ -1034,6 +1139,20 @@ export function SessionPage(): React.ReactElement {
     };
     dataChannelManager.sendControl({ type: "guest.cursor", cursor: hidden });
   }, [controlState, isHost]);
+
+  useEffect(() => {
+    if (isHost || !sessionPermissions.clipboard) return;
+    const handlePaste = (event: ClipboardEvent) => {
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      if (!text) return;
+      event.preventDefault();
+      sendClipboardText(text);
+    };
+    document.addEventListener("paste", handlePaste, { capture: true });
+    return () => {
+      document.removeEventListener("paste", handlePaste, { capture: true });
+    };
+  }, [isHost, sendClipboardText, sessionPermissions.clipboard]);
 
   useEffect(() => {
     const handler = (message: ControlMessage) => {
@@ -1079,6 +1198,31 @@ export function SessionPage(): React.ReactElement {
             setCursorWithTimeout(null);
           } else {
             setCursorWithTimeout(message.cursor);
+          }
+          break;
+        }
+        case "spotlight.show": {
+          setSpotlightWithTimeout(message.spotlight);
+          break;
+        }
+        case "clipboard.snippet": {
+          useSessionStore.getState().addClipboardHistoryEntry({
+            id: `${message.timestamp}-received`,
+            text: message.text,
+            direction: "received",
+            peerRole: message.senderRole,
+            createdAt: message.timestamp,
+          });
+          break;
+        }
+        case "permission.profile.updated": {
+          if (isHost) return;
+          useSessionStore.getState().setPermissionPreset(message.presetId, message.permissions);
+          if (!message.permissions.annotation) {
+            setMarkerEnabled(false);
+          }
+          if (!hasInteractiveControl(message.permissions)) {
+            useSessionStore.getState().setControlState("viewOnly");
           }
           break;
         }
@@ -1142,6 +1286,7 @@ export function SessionPage(): React.ReactElement {
     reconnectAsGuestAfterRoleSwitch,
     reconnectAsHostAfterRoleSwitch,
     setCursorWithTimeout,
+    setSpotlightWithTimeout,
     setError,
     syncHostOverlay,
     upsertStrokePoint,
@@ -1149,8 +1294,23 @@ export function SessionPage(): React.ReactElement {
 
   useEffect(() => {
     if (!isHost) return;
-    syncHostOverlay(annotations, remoteCursor);
-  }, [annotations, isHost, remoteCursor, syncHostOverlay]);
+    const sendPermissions = () => {
+      dataChannelManager.sendControl({
+        type: "permission.profile.updated",
+        presetId: permissionPresetId,
+        permissions: sessionPermissions,
+      });
+    };
+    dataChannelManager.onControlOpen(sendPermissions);
+    return () => {
+      dataChannelManager.offControlOpen(sendPermissions);
+    };
+  }, [isHost, permissionPresetId, sessionPermissions]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    syncHostOverlay(annotations, remoteCursor, spotlight);
+  }, [annotations, isHost, remoteCursor, spotlight, syncHostOverlay]);
 
   useEffect(() => {
     const handleSessionClose = (message: Record<string, unknown>) => {
@@ -1170,6 +1330,14 @@ export function SessionPage(): React.ReactElement {
     if (isHost) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        sessionPermissions.clipboard &&
+        (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") || (e.shiftKey && e.key === "Insert"))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (e.key === "Escape" && markerEnabled) {
         const now = Date.now();
         if (now - lastEscapeAtRef.current <= FULLSCREEN_ESCAPE_INTERVAL_MS) {
@@ -1203,7 +1371,7 @@ export function SessionPage(): React.ReactElement {
         return;
       }
 
-      if (controlState !== "controlAllowed") return;
+      if (controlState !== "controlAllowed" || !sessionPermissions.keyboard) return;
       e.preventDefault();
       const imeEvent = getImeModeEvent(e);
       if (imeEvent) {
@@ -1231,12 +1399,20 @@ export function SessionPage(): React.ReactElement {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (
+        sessionPermissions.clipboard &&
+        (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") || (e.shiftKey && e.key === "Insert"))
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (e.key === "Escape" && (fullscreen || markerEnabled)) {
         e.preventDefault();
         e.stopPropagation();
         return;
       }
-      if (controlState !== "controlAllowed") return;
+      if (controlState !== "controlAllowed" || !sessionPermissions.keyboard) return;
       e.preventDefault();
       if (getImeModeEvent(e)) return;
       const event: KeyboardUpEvent = {
@@ -1261,7 +1437,7 @@ export function SessionPage(): React.ReactElement {
       document.removeEventListener("keydown", handleKeyDown, { capture: true });
       document.removeEventListener("keyup", handleKeyUp, { capture: true });
     };
-  }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled]);
+  }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled, sessionPermissions.clipboard, sessionPermissions.keyboard]);
 
   if (isHost) {
     return (
@@ -1554,7 +1730,12 @@ export function SessionPage(): React.ReactElement {
           </div>
         )}
 
-        <PermissionPanel role="host" />
+        <PermissionPanel
+          role="host"
+          clipboardHistory={clipboardHistory}
+          onReceiveClipboardText={receiveClipboardText}
+          onClearClipboardHistory={() => useSessionStore.getState().clearClipboardHistory()}
+        />
       </div>
     );
   }
@@ -1605,14 +1786,19 @@ export function SessionPage(): React.ReactElement {
       <RemoteVideoView
         annotations={annotations}
         remoteCursor={null}
+        spotlight={spotlight}
         markerEnabled={markerEnabled}
         onMarkerStart={beginMarkerStroke}
         onMarkerMove={appendMarkerStroke}
         onMarkerEnd={endMarkerStroke}
         onHoverPreview={handleHoverPreview}
+        onPointerPosition={(point) => {
+          lastPointerPointRef.current = point;
+        }}
         fullscreen={fullscreen}
         displayMode={displayMode}
         wheelDirection={wheelDirection}
+        sessionPermissions={sessionPermissions}
         adaptiveMode={adaptiveMode}
       />
 
@@ -1727,7 +1913,15 @@ export function SessionPage(): React.ReactElement {
         </div>
       )}
 
-      {!fullscreen && <PermissionPanel role="guest" />}
+      {!fullscreen && (
+        <PermissionPanel
+          role="guest"
+          onSendClipboardText={sendClipboardText}
+          clipboardHistory={clipboardHistory}
+          onReceiveClipboardText={receiveClipboardText}
+          onClearClipboardHistory={() => useSessionStore.getState().clearClipboardHistory()}
+        />
+      )}
     </div>
   );
 }

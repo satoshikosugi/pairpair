@@ -1,9 +1,18 @@
 import { create } from "zustand";
-import type { QualityPreset, QualityPresetName } from "@pairpair/shared";
+import { getPermissionPreset, type PermissionPresetId, type QualityPreset, type QualityPresetName, type SessionPermissions } from "@pairpair/shared";
 
 export type ControlState = "viewOnly" | "controlRequested" | "controlAllowed" | "controlPaused" | "controlRevoked";
 export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "failed";
 export type SessionRole = "host" | "guest" | null;
+export type ClipboardEntryDirection = "sent" | "received";
+
+export interface ClipboardHistoryEntry {
+  id: string;
+  text: string;
+  direction: ClipboardEntryDirection;
+  peerRole: "host" | "guest";
+  createdAt: number;
+}
 
 type OnSessionEndedHandler = () => void;
 
@@ -27,6 +36,9 @@ interface SessionState {
   customQualityPreset: Partial<QualityPreset>;
   adaptiveModeActive: boolean;
   adaptiveBasePreset: QualityPresetName;
+  permissionPresetId: PermissionPresetId;
+  sessionPermissions: SessionPermissions;
+  clipboardHistory: ClipboardHistoryEntry[];
 
   setSessionId: (id: string | null) => void;
   setCode: (code: string | null) => void;
@@ -46,6 +58,9 @@ interface SessionState {
   setCurrentQualityPreset: (preset: QualityPresetName, custom?: Partial<QualityPreset>) => void;
   setAdaptiveModeActive: (active: boolean) => void;
   setAdaptiveBasePreset: (preset: QualityPresetName) => void;
+  setPermissionPreset: (presetId: PermissionPresetId, permissions?: SessionPermissions) => void;
+  addClipboardHistoryEntry: (entry: ClipboardHistoryEntry) => void;
+  clearClipboardHistory: () => void;
   onSessionEnded: (handler: OnSessionEndedHandler) => void;
   emitSessionEnded: () => void;
   reset: () => void;
@@ -71,6 +86,9 @@ const initialState = {
   customQualityPreset: {} as Partial<QualityPreset>,
   adaptiveModeActive: false,
   adaptiveBasePreset: "Balanced" as QualityPresetName,
+  permissionPresetId: "fullControl" as PermissionPresetId,
+  sessionPermissions: getPermissionPreset("fullControl").permissions,
+  clipboardHistory: [] as ClipboardHistoryEntry[],
 };
 
 let sessionEndedHandlers: OnSessionEndedHandler[] = [];
@@ -98,6 +116,14 @@ export const useSessionStore = create<SessionState>((set) => ({
   }),
   setAdaptiveModeActive: (active) => set({ adaptiveModeActive: active }),
   setAdaptiveBasePreset: (preset) => set({ adaptiveBasePreset: preset }),
+  setPermissionPreset: (presetId, permissions) => set({
+    permissionPresetId: presetId,
+    sessionPermissions: permissions ?? getPermissionPreset(presetId).permissions,
+  }),
+  addClipboardHistoryEntry: (entry) => set((state) => ({
+    clipboardHistory: [entry, ...state.clipboardHistory].slice(0, 10),
+  })),
+  clearClipboardHistory: () => set({ clipboardHistory: [] }),
   onSessionEnded: (handler) => {
     sessionEndedHandlers.push(handler);
   },

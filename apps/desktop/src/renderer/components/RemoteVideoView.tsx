@@ -1,5 +1,15 @@
 import React, { useRef, useCallback, useEffect, useState } from "react";
-import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, MouseDownEvent, MouseMoveEvent, MouseUpEvent, MouseWheelEvent } from "@pairpair/shared";
+import type {
+  AnnotationPoint,
+  AnnotationStroke,
+  GuestCursorIndicator,
+  MouseDownEvent,
+  MouseMoveEvent,
+  MouseUpEvent,
+  MouseWheelEvent,
+  SessionPermissions,
+  SpotlightIndicator,
+} from "@pairpair/shared";
 import { toNormalizedCoordinate } from "../utils/coordinate";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";
@@ -12,14 +22,17 @@ interface RemoteVideoViewProps {
   stream?: MediaStream;
   annotations: AnnotationStroke[];
   remoteCursor: GuestCursorIndicator | null;
+  spotlight: SpotlightIndicator | null;
   markerEnabled: boolean;
   onMarkerStart: (point: AnnotationPoint) => void;
   onMarkerMove: (point: AnnotationPoint) => void;
   onMarkerEnd: () => void;
   onHoverPreview: (point: AnnotationPoint | null) => void;
+  onPointerPosition?: (point: AnnotationPoint) => void;
   fullscreen: boolean;
   displayMode: "fit" | "native";
   wheelDirection: "standard" | "natural";
+  sessionPermissions: SessionPermissions;
   adaptiveMode?: boolean;
 }
 
@@ -27,14 +40,17 @@ export function RemoteVideoView({
   stream,
   annotations,
   remoteCursor,
+  spotlight,
   markerEnabled,
   onMarkerStart,
   onMarkerMove,
   onMarkerEnd,
   onHoverPreview,
+  onPointerPosition,
   fullscreen,
   displayMode,
   wheelDirection,
+  sessionPermissions,
   adaptiveMode = false,
 }: RemoteVideoViewProps): React.ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -131,13 +147,14 @@ export function RemoteVideoView({
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
+      onPointerPosition?.(point);
 
       if (markerEnabled && isDrawingRef.current) {
         onMarkerMove(point);
         return;
       }
 
-      if (!canControl) {
+      if (!canControl || !sessionPermissions.mouseMove) {
         const now = Date.now();
         if (now - lastMouseMoveTime.current < MOUSE_MOVE_INTERVAL_MS) return;
         lastMouseMoveTime.current = now;
@@ -170,7 +187,7 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerMove, adaptiveMode]
+    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerMove, onPointerPosition, sessionPermissions.mouseMove, adaptiveMode]
   );
 
   const handleMouseDown = useCallback(
@@ -193,6 +210,7 @@ export function RemoteVideoView({
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
+      onPointerPosition?.(point);
 
       if (markerEnabled) {
         isDrawingRef.current = true;
@@ -200,7 +218,7 @@ export function RemoteVideoView({
         return;
       }
 
-      if (!canControl) {
+      if (!canControl || !sessionPermissions.mouseClick) {
         return;
       }
 
@@ -211,22 +229,31 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerStart, fitToViewport, adaptiveMode]
+    [canControl, getPoint, markerEnabled, onMarkerStart, onPointerPosition, fitToViewport, sessionPermissions.mouseClick, adaptiveMode]
   );
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
       if (markerEnabled || canControl) return;
       if (e.button !== 0) return;
+      if (
+        !sessionPermissions.mouseMove &&
+        !sessionPermissions.mouseClick &&
+        !sessionPermissions.mouseWheel &&
+        !sessionPermissions.keyboard
+      ) {
+        return;
+      }
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
+      onPointerPosition?.(point);
 
       useSessionStore.getState().setControlState("controlAllowed");
       dataChannelManager.sendControl({ type: "remoteControl.grabbed" });
       onHoverPreview(null);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview],
+    [canControl, getPoint, markerEnabled, onHoverPreview, onPointerPosition, sessionPermissions.keyboard, sessionPermissions.mouseClick, sessionPermissions.mouseMove, sessionPermissions.mouseWheel],
   );
 
   const handleMouseUp = useCallback(
@@ -240,6 +267,7 @@ export function RemoteVideoView({
 
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
+      onPointerPosition?.(point);
 
       if (markerEnabled && isDrawingRef.current) {
         isDrawingRef.current = false;
@@ -247,7 +275,7 @@ export function RemoteVideoView({
         return;
       }
 
-      if (!canControl) return;
+      if (!canControl || !sessionPermissions.mouseClick) return;
 
       const button = e.button === 0 ? "left" : e.button === 2 ? "right" : "middle";
       const event: MouseUpEvent = { type: "mouse.up", button, x: point.x, y: point.y };
@@ -256,14 +284,15 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onMarkerEnd, adaptiveMode]
+    [canControl, getPoint, markerEnabled, onMarkerEnd, onPointerPosition, sessionPermissions.mouseClick, adaptiveMode]
   );
 
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLVideoElement>) => {
-      if (!canControl || markerEnabled) return;
+      if (!canControl || markerEnabled || !sessionPermissions.mouseWheel) return;
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
+      onPointerPosition?.(point);
 
       e.preventDefault();
       const event: MouseWheelEvent = {
@@ -278,7 +307,7 @@ export function RemoteVideoView({
       }
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, wheelDirection, adaptiveMode]
+    [canControl, getPoint, markerEnabled, onPointerPosition, sessionPermissions.mouseWheel, wheelDirection, adaptiveMode]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -287,6 +316,25 @@ export function RemoteVideoView({
     onMarkerEnd();
     onHoverPreview(null);
   }, [onHoverPreview, onMarkerEnd]);
+
+  useEffect(() => {
+    if (!spotlight?.visible || fitToViewport) return;
+    const container = containerRef.current;
+    const renderedWidth = displaySize?.width ?? videoSize.width;
+    const renderedHeight = displaySize?.height ?? videoSize.height;
+    if (!container || !renderedWidth || !renderedHeight) return;
+
+    const targetLeft = Math.max(0, renderedWidth * spotlight.x - container.clientWidth / 2);
+    const targetTop = Math.max(0, renderedHeight * spotlight.y - container.clientHeight / 2);
+    const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+
+    container.scrollTo({
+      left: Math.min(targetLeft, maxScrollLeft),
+      top: Math.min(targetTop, maxScrollTop),
+      behavior: "smooth",
+    });
+  }, [displaySize?.height, displaySize?.width, fitToViewport, spotlight, videoSize.height, videoSize.width]);
 
   return (
     <div
@@ -400,6 +448,59 @@ export function RemoteVideoView({
                 boxShadow: "0 0 0 1px rgba(0,0,0,0.65)",
               }}
             />
+          </div>
+        )}
+        {spotlight?.visible && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${spotlight.x * 100}%`,
+              top: `${spotlight.y * 100}%`,
+              width: 112,
+              height: 112,
+              transform: "translate(-50%, -50%)",
+              pointerEvents: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: "50%",
+                border: "3px solid rgba(76, 201, 240, 0.98)",
+                boxShadow: "0 0 24px rgba(76, 201, 240, 0.65)",
+                background: "radial-gradient(circle, rgba(76, 201, 240, 0.24) 0%, rgba(76, 201, 240, 0.08) 35%, rgba(76, 201, 240, 0) 72%)",
+                animation: "pairpairSpotlightPulse 1.15s ease-out infinite",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 10px)",
+                left: "50%",
+                transform: "translateX(-50%)",
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: "rgba(7, 13, 24, 0.92)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.18)",
+                fontSize: 14,
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.34)",
+              }}
+            >
+              {spotlight.label ?? "注目"}
+            </div>
+            <style>{`
+              @keyframes pairpairSpotlightPulse {
+                0% { transform: scale(0.72); opacity: 0.95; }
+                100% { transform: scale(1.12); opacity: 0.08; }
+              }
+            `}</style>
           </div>
         )}
       </div>

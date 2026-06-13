@@ -25,7 +25,7 @@ const OVERLAY_HTML = `<!DOCTYPE html>
         width: 100%;
         height: 100%;
       }
-      .cursor {
+      .cursor, .spotlight {
         position: absolute;
         width: 32px;
         height: 32px;
@@ -62,16 +62,50 @@ const OVERLAY_HTML = `<!DOCTYPE html>
         border-radius: 999px;
         box-shadow: 0 0 18px rgba(255, 87, 34, 0.7);
       }
+      .spotlight {
+        width: 112px;
+        height: 112px;
+      }
+      .spotlight .pulse {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        border: 3px solid rgba(76, 201, 240, 0.98);
+        box-shadow: 0 0 24px rgba(76, 201, 240, 0.65);
+        background: radial-gradient(circle, rgba(76, 201, 240, 0.24) 0%, rgba(76, 201, 240, 0.08) 35%, rgba(76, 201, 240, 0) 72%);
+        animation: spotlightPulse 1.15s ease-out infinite;
+      }
+      .spotlight .label {
+        position: absolute;
+        left: 50%;
+        top: calc(100% + 10px);
+        transform: translateX(-50%);
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(7, 13, 24, 0.92);
+        color: white;
+        border: 1px solid rgba(255,255,255,0.18);
+        font-family: sans-serif;
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      @keyframes spotlightPulse {
+        0% { transform: scale(0.72); opacity: 0.95; }
+        100% { transform: scale(1.12); opacity: 0.08; }
+      }
     </style>
   </head>
   <body>
     <svg id="overlay" viewBox="0 0 1 1" preserveAspectRatio="none"></svg>
     <div id="cursor" class="cursor"><div class="ring"></div></div>
+    <div id="spotlight" class="spotlight"><div class="pulse"></div><div id="spotlight-label" class="label">注目</div></div>
     <script>
       const svg = document.getElementById("overlay");
       const cursor = document.getElementById("cursor");
+      const spotlight = document.getElementById("spotlight");
+      const spotlightLabel = document.getElementById("spotlight-label");
       window.setOverlayState = (state) => {
-        if (!svg || !cursor) return;
+        if (!svg || !cursor || !spotlight || !spotlightLabel) return;
         svg.replaceChildren();
         for (const stroke of state.strokes || []) {
           if (!stroke.points || stroke.points.length < 2) continue;
@@ -91,6 +125,15 @@ const OVERLAY_HTML = `<!DOCTYPE html>
           cursor.style.top = \`\${guestCursor.y * 100}%\`;
         } else {
           cursor.style.display = "none";
+        }
+        const spotlightState = state.spotlight;
+        if (spotlightState && spotlightState.visible) {
+          spotlight.style.display = "block";
+          spotlight.style.left = `${spotlightState.x * 100}%`;
+          spotlight.style.top = `${spotlightState.y * 100}%`;
+          spotlightLabel.textContent = spotlightState.label || "注目";
+        } else {
+          spotlight.style.display = "none";
         }
       };
     </script>

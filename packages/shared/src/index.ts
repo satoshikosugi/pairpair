@@ -4,3 +4,4 @@ export * from "./input-events";
 export * from "./annotation";
 export * from "./quality";
 export * from "./errors";
+export * from "./permissions";

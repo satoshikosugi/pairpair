@@ -20,6 +20,7 @@ interface MarkerToolbarProps {
   canUndo: boolean;
   hasStrokes: boolean;
   onToggleFullscreen: () => void;
+  onSpotlight?: () => void;
   onToggleMinimized?: () => void;
   onReturnControl?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
@@ -48,6 +49,7 @@ export function MarkerToolbar({
   canUndo,
   hasStrokes,
   onToggleFullscreen,
+  onSpotlight,
   onToggleMinimized,
   onReturnControl,
   dragHandleProps,
@@ -163,6 +165,13 @@ export function MarkerToolbar({
               tooltip="スクロール方向を Windows 方式と Mac 方式で切り替える"
               onClick={() => onWheelDirectionChange(wheelDirection === "standard" ? "natural" : "standard")}
             />
+            {onSpotlight && (
+              <ToolbarButton
+                label="ここを見て"
+                tooltip="今見てほしい位置を相手の画面に強調表示する"
+                onClick={onSpotlight}
+              />
+            )}
           </Section>
 
           <Section label="描画">

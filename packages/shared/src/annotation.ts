@@ -18,7 +18,16 @@ export interface GuestCursorIndicator {
   timestamp: number;
 }
 
+export interface SpotlightIndicator {
+  x: number;
+  y: number;
+  label?: string;
+  visible: boolean;
+  timestamp: number;
+}
+
 export interface HostOverlayState {
   strokes: AnnotationStroke[];
   guestCursor: GuestCursorIndicator | null;
+  spotlight: SpotlightIndicator | null;
 }

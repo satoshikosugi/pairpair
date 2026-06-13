@@ -1,4 +1,5 @@
-import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator } from "./annotation";
+import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, SpotlightIndicator } from "./annotation";
+import type { PermissionPresetId, SessionPermissions } from "./permissions";
 
 export interface RemoteControlRequestMessage {
   type: "remoteControl.request";
@@ -116,6 +117,18 @@ export interface GuestCursorMessage {
   cursor: GuestCursorIndicator;
 }
 
+export interface SpotlightShowMessage {
+  type: "spotlight.show";
+  spotlight: SpotlightIndicator;
+}
+
+export interface ClipboardSnippetMessage {
+  type: "clipboard.snippet";
+  text: string;
+  senderRole: "host" | "guest";
+  timestamp: number;
+}
+
 export interface SessionRoleSwitchRequestMessage {
   type: "session.roleSwitch.request";
   guestToken: string;
@@ -128,6 +141,12 @@ export interface SessionRoleSwitchReadyMessage {
 
 export interface SessionRoleSwitchReadyAckMessage {
   type: "session.roleSwitch.readyAck";
+}
+
+export interface PermissionProfileUpdatedMessage {
+  type: "permission.profile.updated";
+  presetId: PermissionPresetId;
+  permissions: SessionPermissions;
 }
 
 export type ControlMessage =
@@ -154,6 +173,9 @@ export type ControlMessage =
   | AnnotationUndoMessage
   | AnnotationClearMessage
   | GuestCursorMessage
+  | SpotlightShowMessage
+  | ClipboardSnippetMessage
+  | PermissionProfileUpdatedMessage
   | SessionRoleSwitchRequestMessage
   | SessionRoleSwitchReadyMessage
   | SessionRoleSwitchReadyAckMessage;

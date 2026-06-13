@@ -1,4 +1,4 @@
-import type { ControlMessage, InputEvent } from "@pairpair/shared";
+import { isInputEventAllowed, type ControlMessage, type InputEvent } from "@pairpair/shared";
 import { useSettingsStore } from "../store/settings-store";
 import { useSessionStore } from "../store/session-store";
 import { signalingClient } from "./signaling-client";
@@ -40,8 +40,12 @@ export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
     dataChannelManager.offInput(hostInputHandler);
   }
   hostInputHandler = async (event) => {
-    const controlState = useSessionStore.getState().controlState;
-    if (peerAuthenticated && controlState === "controlAllowed") {
+    const { controlState, sessionPermissions } = useSessionStore.getState();
+    const canInject =
+      peerAuthenticated &&
+      isInputEventAllowed(event, sessionPermissions) &&
+      (controlState === "controlAllowed" || event.type === "text.input");
+    if (canInject) {
       const injected = await window.pairpair.injectInput(event);
       if (!injected) {
         console.error("[PairPair] Failed to inject remote input event", event);
@@ -190,6 +194,8 @@ export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> 
       useSessionStore.getState().setControlState("controlRevoked");
     } else if (message.type === "remoteControl.paused") {
       useSessionStore.getState().setControlState("controlPaused");
+    } else if (message.type === "permission.profile.updated") {
+      useSessionStore.getState().setPermissionPreset(message.presetId, message.permissions);
     }
   });
 

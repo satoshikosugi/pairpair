@@ -136,6 +136,35 @@ function getPlatformKeyCode(code: string): number | undefined {
   return DOM_KEY_TO_VK[code];
 }
 
+function tapKey(nativeInput: NativeInputModule, keyCode: number): void {
+  nativeInput.keyDown(keyCode);
+  nativeInput.keyUp(keyCode);
+}
+
+function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" | "latin"): void {
+  if (process.platform === "darwin") {
+    if (mode === "japanese") {
+      tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Lang1);
+    } else if (mode === "latin") {
+      tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Lang2);
+    } else {
+      nativeInput.keyDown(DOM_KEY_TO_MAC_KEYCODE.MetaLeft);
+      tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Space);
+      nativeInput.keyUp(DOM_KEY_TO_MAC_KEYCODE.MetaLeft);
+    }
+    return;
+  }
+
+  if (process.platform === "win32") {
+    const keyCode = mode === "japanese"
+      ? DOM_KEY_TO_VK.KanaMode
+      : mode === "latin"
+        ? DOM_KEY_TO_VK.NonConvert
+        : DOM_KEY_TO_VK.KanjiMode;
+    tapKey(nativeInput, keyCode);
+  }
+}
+
 export function injectInputEvent(event: InputEvent): boolean {
   const area = currentCaptureArea ?? getCaptureAreaFromDisplay();
   const nativeInput = getNativeInputModule();
@@ -193,6 +222,10 @@ export function injectInputEvent(event: InputEvent): boolean {
       }
       case "text.input": {
         nativeInput.typeText(event.text);
+        break;
+      }
+      case "ime.mode": {
+        setImeMode(nativeInput, event.mode);
         break;
       }
     }

@@ -5,6 +5,7 @@ import type {
   ControlMessage,
   GuestCursorIndicator,
   HostOverlayState,
+  ImeModeEvent,
   InputEvent as PairPairInputEvent,
   KeyboardDownEvent,
   KeyboardUpEvent,
@@ -38,6 +39,24 @@ import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
 const FULLSCREEN_HINT_DURATION_MS = 2000;
+
+function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
+  if (event.code === "Lang1") return { type: "ime.mode", mode: "japanese" };
+  if (event.code === "Lang2") return { type: "ime.mode", mode: "latin" };
+
+  const toggleKeys = new Set([
+    "KanjiMode",
+    "Hankaku",
+    "Zenkaku",
+    "ZenkakuHankaku",
+    "KanaMode",
+  ]);
+  if (toggleKeys.has(event.key)) {
+    return { type: "ime.mode", mode: "toggle" };
+  }
+
+  return null;
+}
 
 export function SessionPage(): React.ReactElement {
   const { navigate } = useAppStore();
@@ -551,6 +570,11 @@ export function SessionPage(): React.ReactElement {
 
       if (controlState !== "controlAllowed") return;
       e.preventDefault();
+      const imeEvent = getImeModeEvent(e);
+      if (imeEvent) {
+        dataChannelManager.sendInput(imeEvent);
+        return;
+      }
       const event: KeyboardDownEvent = {
         type: "keyboard.down",
         code: e.code,
@@ -571,6 +595,7 @@ export function SessionPage(): React.ReactElement {
       }
       if (controlState !== "controlAllowed") return;
       e.preventDefault();
+      if (getImeModeEvent(e)) return;
       const event: KeyboardUpEvent = {
         type: "keyboard.up",
         code: e.code,

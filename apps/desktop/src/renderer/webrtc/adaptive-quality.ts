@@ -19,7 +19,8 @@ function inputEventToState(event: InputEvent): PairProActivityState | null {
     case "mouse.up":    return "clicking";
     case "keyboard.down":
     case "keyboard.up":
-    case "text.input":  return "typing";
+    case "text.input":
+    case "ime.mode":    return "typing";
     default:            return null;
   }
 }

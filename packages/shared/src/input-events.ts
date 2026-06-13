@@ -53,6 +53,11 @@ export interface TextInputEvent {
   text: string;
 }
 
+export interface ImeModeEvent {
+  type: "ime.mode";
+  mode: "toggle" | "japanese" | "latin";
+}
+
 export type InputEvent =
   | MouseMoveEvent
   | MouseDownEvent
@@ -60,4 +65,5 @@ export type InputEvent =
   | MouseWheelEvent
   | KeyboardDownEvent
   | KeyboardUpEvent
-  | TextInputEvent;
+  | TextInputEvent
+  | ImeModeEvent;

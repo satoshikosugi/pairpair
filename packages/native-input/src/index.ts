@@ -154,7 +154,7 @@ export const DOM_KEY_TO_VK: Record<string, number> = {
   "ShiftLeft": 0x10, "ShiftRight": 0x10,
   "AltLeft": 0x12, "AltRight": 0x12,
   "MetaLeft": 0x5B, "MetaRight": 0x5C,
-  "Convert": 0x1C, "NonConvert": 0x1D, "KanaMode": 0x15,
+  "Convert": 0x1C, "NonConvert": 0x1D, "KanaMode": 0x15, "KanjiMode": 0x19,
   "Lang1": 0x15, "Lang2": 0xF0,
   "CapsLock": 0x14, "NumLock": 0x90, "ScrollLock": 0x91,
   "Semicolon": 0xBA, "Equal": 0xBB, "Comma": 0xBC, "Minus": 0xBD,

@@ -287,12 +287,13 @@ export function SessionPage(): React.ReactElement {
     }
   }, []);
 
-  const preparePeerReconnection = useCallback(() => {
+  const preparePeerReconnection = useCallback(async () => {
     console.info(
       `[PairPair][RoleSwitch] preparePeerReconnection role=${String(useSessionStore.getState().role)} sessionId=${sessionId ?? "<none>"}`,
     );
     clearRoleSwitchTimeout();
     signalingClient.send({ type: "session.roleSwitch.prepare" });
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();
     activeStrokeRef.current = null;
@@ -306,7 +307,7 @@ export function SessionPage(): React.ReactElement {
     if (controlMessageHandlerRef.current) {
       dataChannelManager.onControl(controlMessageHandlerRef.current);
     }
-  }, [clearRoleSwitchTimeout]);
+  }, [clearRoleSwitchTimeout, sessionId]);
 
   const reconnectAsGuestAfterRoleSwitch = useCallback(async (nextGuestToken: string) => {
     if (!sessionId || !signalingUrl || !code) {
@@ -317,7 +318,7 @@ export function SessionPage(): React.ReactElement {
     console.info(
       `[PairPair][RoleSwitch] reconnectAsGuestAfterRoleSwitch sessionId=${sessionId} nextHostName=${nextHostName} token=${nextGuestToken.slice(0, 8)}`,
     );
-    preparePeerReconnection();
+    await preparePeerReconnection();
 
     useSessionStore.getState().setRole("guest");
     useSessionStore.getState().setHostDeviceName(nextHostName);
@@ -382,7 +383,7 @@ export function SessionPage(): React.ReactElement {
       `[PairPair][RoleSwitch] reconnectAsHostAfterRoleSwitch sessionId=${sessionId} sourceId=${source.id} sourceName=${source.name} token=${nextHostToken.slice(0, 8)}`,
     );
 
-    preparePeerReconnection();
+    await preparePeerReconnection();
     await hostPeerAuthenticator.prepare(code, "");
 
     useSessionStore.getState().setRole("host");

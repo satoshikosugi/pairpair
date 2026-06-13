@@ -52,6 +52,7 @@ const TOOLBAR_IDLE_FADE_MS = 5000;
 const FULLSCREEN_REQUEST_TIMEOUT_MS = 1500;
 const ROLE_SWITCH_READY_RETRY_MS = 250;
 const ROLE_SWITCH_READY_MAX_RETRIES = 24;
+const ROLE_SWITCH_COMPLETION_TIMEOUT_MS = 15000;
 
 function getToolboxBounds(
   panelWidth: number,
@@ -168,6 +169,7 @@ export function SessionPage(): React.ReactElement {
   const roleSwitchTimeoutRef = useRef<number | null>(null);
   const pendingRoleSwitchGuestTokenRef = useRef<string | null>(null);
   const roleSwitchReadyRetryTimerRef = useRef<number | null>(null);
+  const roleSwitchCompletionTimerRef = useRef<number | null>(null);
   const isHost = role === "host";
   const isHostRef = useRef(isHost);
   const roleSwitchInProgressRef = useRef(roleSwitchInProgress);
@@ -305,6 +307,23 @@ export function SessionPage(): React.ReactElement {
     pendingRoleSwitchGuestTokenRef.current = null;
   }, []);
 
+  const clearRoleSwitchCompletionTimeout = useCallback(() => {
+    if (roleSwitchCompletionTimerRef.current !== null) {
+      window.clearTimeout(roleSwitchCompletionTimerRef.current);
+      roleSwitchCompletionTimerRef.current = null;
+    }
+  }, []);
+
+  const startRoleSwitchCompletionTimeout = useCallback(() => {
+    clearRoleSwitchCompletionTimeout();
+    roleSwitchCompletionTimerRef.current = window.setTimeout(() => {
+      roleSwitchCompletionTimerRef.current = null;
+      setRoleSwitchInProgress(false);
+      useSessionStore.getState().setRoleSwitchInProgress(false);
+      setError("役割切替がタイムアウトしました。接続の再確立が完了しませんでした。");
+    }, ROLE_SWITCH_COMPLETION_TIMEOUT_MS);
+  }, [clearRoleSwitchCompletionTimeout, setError]);
+
   const clearFullscreenRequest = useCallback(() => {
     fullscreenRequestPendingRef.current = false;
     if (fullscreenRequestTimerRef.current !== null) {
@@ -341,9 +360,11 @@ export function SessionPage(): React.ReactElement {
     );
     clearRoleSwitchTimeout();
     clearRoleSwitchReadyRetry();
+    clearRoleSwitchCompletionTimeout();
     clearFullscreenRequest();
     setShowRoleSwitchPicker(false);
     setFullscreen(false);
+    signalingClient.clearHandlers();
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();
     activeStrokeRef.current = null;
@@ -356,7 +377,7 @@ export function SessionPage(): React.ReactElement {
     if (controlMessageHandlerRef.current) {
       dataChannelManager.onControl(controlMessageHandlerRef.current);
     }
-  }, [clearFullscreenRequest, clearRoleSwitchReadyRetry, clearRoleSwitchTimeout, sessionId]);
+  }, [clearFullscreenRequest, clearRoleSwitchCompletionTimeout, clearRoleSwitchReadyRetry, clearRoleSwitchTimeout, sessionId]);
 
   const reconnectAsGuestAfterRoleSwitch = useCallback(async (nextGuestToken: string) => {
     if (!sessionId || !signalingUrl || !code) {
@@ -368,6 +389,7 @@ export function SessionPage(): React.ReactElement {
       `[PairPair][RoleSwitch] reconnectAsGuestAfterRoleSwitch sessionId=${sessionId} nextHostName=${nextHostName} token=${nextGuestToken.slice(0, 8)}`,
     );
     await preparePeerReconnection();
+    startRoleSwitchCompletionTimeout();
 
     useSessionStore.getState().setRole("guest");
     useSessionStore.getState().setHostDeviceName(nextHostName);
@@ -402,21 +424,24 @@ export function SessionPage(): React.ReactElement {
     guestPeerAuthenticator.start(
       code,
       () => {
+        clearRoleSwitchCompletionTimeout();
         setRoleSwitchInProgress(false);
         useSessionStore.getState().setRoleSwitchInProgress(false);
         setError("役割切替後の認証で追加パスフレーズが要求されました。現在の実装では再入力に未対応です。");
       },
       () => {
+        clearRoleSwitchCompletionTimeout();
         setRoleSwitchInProgress(false);
         useSessionStore.getState().setRoleSwitchInProgress(false);
       },
       (reason) => {
+        clearRoleSwitchCompletionTimeout();
         setRoleSwitchInProgress(false);
         useSessionStore.getState().setRoleSwitchInProgress(false);
         setError(`役割切替後のゲスト認証に失敗しました: ${reason}`);
       },
     );
-  }, [code, finalizeSession, guestDeviceName, preparePeerReconnection, sessionId, setError, signalingUrl]);
+  }, [clearRoleSwitchCompletionTimeout, code, finalizeSession, guestDeviceName, preparePeerReconnection, sessionId, setError, signalingUrl, startRoleSwitchCompletionTimeout]);
 
   const reconnectAsHostAfterRoleSwitch = useCallback(async (nextHostToken: string, source: ScreenSource) => {
     if (!sessionId || !signalingUrl || !guestToken || !code) {
@@ -433,6 +458,7 @@ export function SessionPage(): React.ReactElement {
     );
 
     await preparePeerReconnection();
+    startRoleSwitchCompletionTimeout();
     await hostPeerAuthenticator.prepare(code, "");
 
     useSessionStore.getState().setRole("host");
@@ -461,17 +487,20 @@ export function SessionPage(): React.ReactElement {
               markPeerAuthenticated();
               void startHostScreenShare(source.id, adaptiveMode ? adaptivePreset : preset)
                 .then(() => {
+                  clearRoleSwitchCompletionTimeout();
                   setRoleSwitchInProgress(false);
                   useSessionStore.getState().setRoleSwitchInProgress(false);
                   if (adaptiveMode) enableAdaptive(adaptiveResPreset);
                 })
                 .catch((err) => {
+                  clearRoleSwitchCompletionTimeout();
                   setRoleSwitchInProgress(false);
                   useSessionStore.getState().setRoleSwitchInProgress(false);
                   setError(`役割切替後の画面共有開始に失敗しました: ${String(err)}`);
                 });
             },
             (reason) => {
+              clearRoleSwitchCompletionTimeout();
               setRoleSwitchInProgress(false);
               useSessionStore.getState().setRoleSwitchInProgress(false);
               closePeerConnection();
@@ -480,6 +509,7 @@ export function SessionPage(): React.ReactElement {
           );
         })
         .catch((err) => {
+          clearRoleSwitchCompletionTimeout();
           setRoleSwitchInProgress(false);
           useSessionStore.getState().setRoleSwitchInProgress(false);
           setError(`役割切替後のP2P接続に失敗しました: ${String(err)}`);
@@ -510,6 +540,8 @@ export function SessionPage(): React.ReactElement {
     sessionId,
     setError,
     signalingUrl,
+    startRoleSwitchCompletionTimeout,
+    clearRoleSwitchCompletionTimeout,
     handleGuestDisconnected,
   ]);
 
@@ -718,9 +750,10 @@ export function SessionPage(): React.ReactElement {
         window.clearTimeout(toolboxIdleTimerRef.current);
       }
       clearFullscreenRequest();
+      clearRoleSwitchCompletionTimeout();
       clearRoleSwitchTimeout();
     };
-  }, [clearFullscreenRequest, clearRoleSwitchTimeout, handleDisconnect, handleReleaseControl, isHost]);
+  }, [clearFullscreenRequest, clearRoleSwitchCompletionTimeout, clearRoleSwitchTimeout, handleDisconnect, handleReleaseControl, isHost]);
 
   useEffect(() => {
     void window.pairpair.setSessionRole(role).catch(console.error);

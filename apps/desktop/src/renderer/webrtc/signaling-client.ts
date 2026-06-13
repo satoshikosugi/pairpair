@@ -177,6 +177,10 @@ export class SignalingClient {
     if (idx >= 0) handlers.splice(idx, 1);
   }
 
+  clearHandlers(): void {
+    this.messageHandlers.clear();
+  }
+
   private emit(type: string, data: Record<string, unknown>): void {
     const handlers = this.messageHandlers.get(type) ?? [];
     handlers.forEach((h) => h({ type, ...data }));

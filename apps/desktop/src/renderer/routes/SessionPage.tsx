@@ -171,6 +171,7 @@ export function SessionPage(): React.ReactElement {
   const isHostRef = useRef(isHost);
   const roleSwitchInProgressRef = useRef(roleSwitchInProgress);
   const fullscreenRef = useRef(fullscreen);
+  const fullscreenRequestPendingRef = useRef(false);
 
   const STATE_LABEL: Record<string, string> = {
     idle: "アイドル",
@@ -619,14 +620,21 @@ export function SessionPage(): React.ReactElement {
   }, [controlState]);
 
   const toggleGuestFullscreen = useCallback(() => {
+    if (fullscreenRequestPendingRef.current) return;
     const previousFullscreen = fullscreenRef.current;
     const nextFullscreen = !previousFullscreen;
-    setFullscreen(nextFullscreen);
-    void window.pairpair.setGuestFullscreen(nextFullscreen).catch((err) => {
+    fullscreenRequestPendingRef.current = true;
+    void window.pairpair.setGuestFullscreen(nextFullscreen).then((accepted) => {
+      if (!accepted) {
+        fullscreenRequestPendingRef.current = false;
+        setError("全画面表示の切り替えに失敗しました");
+      }
+    }).catch((err) => {
+      fullscreenRequestPendingRef.current = false;
       setFullscreen(previousFullscreen);
       console.error(err);
     });
-  }, []);
+  }, [setError]);
 
   const restoreToolboxIntoView = useCallback(() => {
     setToolboxMinimized(false);
@@ -757,6 +765,7 @@ export function SessionPage(): React.ReactElement {
 
   useEffect(() => {
     const handleFullscreenChanged = (nextFullscreen: boolean) => {
+      fullscreenRequestPendingRef.current = false;
       setFullscreen(nextFullscreen);
 
       if (fullscreenHintTimerRef.current !== null) {

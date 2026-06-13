@@ -48,10 +48,14 @@ export function setupSessionIpc(): void {
     const win = getMainWindow();
     if (!win) return false;
 
+    if (win.isFullScreen() === fullscreen) {
+      sendToRenderer("session:fullscreen-changed", fullscreen);
+      return true;
+    }
+
     win.setAutoHideMenuBar(fullscreen);
     win.setMenuBarVisibility(!fullscreen);
     win.setFullScreen(fullscreen);
-    sendToRenderer("session:fullscreen-changed", fullscreen);
     return true;
   });
 }

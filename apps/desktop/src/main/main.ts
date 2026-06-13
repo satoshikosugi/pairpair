@@ -34,6 +34,14 @@ function createMainWindow(): BrowserWindow {
     win.show();
   });
 
+  win.on("enter-full-screen", () => {
+    win.webContents.send("session:fullscreen-changed", true);
+  });
+
+  win.on("leave-full-screen", () => {
+    win.webContents.send("session:fullscreen-changed", false);
+  });
+
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);
     if (process.env.PAIRPAIR_OPEN_DEVTOOLS === "1") {

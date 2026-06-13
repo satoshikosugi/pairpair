@@ -39,6 +39,8 @@ export function RemoteVideoView({
   const lastMouseMoveTime = useRef(0);
   const lastMousePos = useRef({ x: -1, y: -1 });
   const isDrawingRef = useRef(false);
+  const isPanningRef = useRef(false);
+  const panStartPosRef = useRef({ clientX: 0, clientY: 0, scrollLeft: 0, scrollTop: 0 });
   const { controlState } = useSessionStore();
   const canControl = controlState === "controlAllowed";
   const fitToViewport = displayMode === "fit";
@@ -101,6 +103,24 @@ export function RemoteVideoView({
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
+      // Pan mode (right-click drag)
+      if (isPanningRef.current) {
+        const container = containerRef.current;
+        if (container) {
+          const deltaX = e.clientX - panStartPosRef.current.clientX;
+          const deltaY = e.clientY - panStartPosRef.current.clientY;
+          
+          // Calculate bounds
+          const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+          const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+          
+          // Clamp scroll position within valid bounds
+          container.scrollLeft = Math.max(0, Math.min(maxScrollLeft, panStartPosRef.current.scrollLeft - deltaX));
+          container.scrollTop = Math.max(0, Math.min(maxScrollTop, panStartPosRef.current.scrollTop - deltaY));
+        }
+        return;
+      }
+
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
 
@@ -144,6 +164,22 @@ export function RemoteVideoView({
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
+      // Right-click pan mode (for native/scaled views with overflow)
+      if (e.button === 2 && !fitToViewport) {
+        const container = containerRef.current;
+        if (container && (container.scrollWidth > container.clientWidth || container.scrollHeight > container.clientHeight)) {
+          isPanningRef.current = true;
+          panStartPosRef.current = {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            scrollLeft: container.scrollLeft,
+            scrollTop: container.scrollTop,
+          };
+          e.preventDefault();
+          return;
+        }
+      }
+
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
 
@@ -161,7 +197,7 @@ export function RemoteVideoView({
       const event: MouseDownEvent = { type: "mouse.down", button, x: point.x, y: point.y };
       dataChannelManager.sendInput(event);
     },
-    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerStart]
+    [canControl, getPoint, markerEnabled, onHoverPreview, onMarkerStart, fitToViewport]
   );
 
   const handleClick = useCallback(
@@ -181,6 +217,13 @@ export function RemoteVideoView({
 
   const handleMouseUp = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
+      // End pan mode
+      if (isPanningRef.current) {
+        isPanningRef.current = false;
+        e.preventDefault();
+        return;
+      }
+
       const point = getPoint(e.clientX, e.clientY);
       if (!point) return;
 
@@ -220,6 +263,7 @@ export function RemoteVideoView({
 
   const handleMouseLeave = useCallback(() => {
     isDrawingRef.current = false;
+    isPanningRef.current = false;
     onMarkerEnd();
     onHoverPreview(null);
   }, [onHoverPreview, onMarkerEnd]);
@@ -230,8 +274,8 @@ export function RemoteVideoView({
       style={{
         flex: 1,
         display: fitToViewport ? "flex" : "block",
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: fitToViewport ? "center" : undefined,
+        justifyContent: fitToViewport ? "center" : undefined,
         background: "#000",
         padding: fullscreen ? 0 : 12,
         minWidth: 0,
@@ -242,8 +286,9 @@ export function RemoteVideoView({
       <div
         style={{
           position: "relative",
-          display: "inline-flex",
-          flex: "0 0 auto",
+          display: fitToViewport ? "inline-flex" : "block",
+          flex: fitToViewport ? "0 0 auto" : undefined,
+          margin: fitToViewport ? "auto" : undefined,
           width: displaySize?.width,
           height: displaySize?.height,
         }}
@@ -263,11 +308,12 @@ export function RemoteVideoView({
           onClick={handleClick}
           onWheel={handleWheel}
           onMouseLeave={handleMouseLeave}
+          onContextMenu={(e) => e.preventDefault()}
           style={{
             display: "block",
             width: displaySize?.width ?? "auto",
             height: displaySize?.height ?? "auto",
-            cursor: markerEnabled ? "cell" : canControl ? "crosshair" : "default",
+            cursor: markerEnabled ? "cell" : canControl ? "crosshair" : !fitToViewport ? "grab" : "default",
             userSelect: "none",
           }}
         />

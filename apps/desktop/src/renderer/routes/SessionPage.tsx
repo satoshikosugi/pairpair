@@ -37,7 +37,7 @@ import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 
 const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
-const FULLSCREEN_HINT_DURATION_MS = 2000;
+const FULLSCREEN_HINT_DURATION_MS = 5000;
 
 function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
   if (event.code === "Lang1") return { type: "ime.mode", mode: "japanese" };
@@ -834,7 +834,7 @@ export function SessionPage(): React.ReactElement {
             borderRadius: 12,
             background: "rgba(0, 0, 0, 0.74)",
             color: "#fff",
-            fontSize: 18,
+            fontSize: 36,
             fontWeight: 700,
             pointerEvents: "none",
             boxShadow: "0 12px 32px rgba(0,0,0,0.35)",

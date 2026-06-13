@@ -4,8 +4,10 @@ interface MarkerToolbarProps {
   enabled: boolean;
   color: string;
   width: number;
+  displayMode: "fit" | "native";
   onToggle: () => void;
   onEnable: () => void;
+  onDisplayModeChange: (mode: "fit" | "native") => void;
   onColorChange: (color: string) => void;
   onWidthChange: (width: number) => void;
   onUndo: () => void;
@@ -22,8 +24,10 @@ export function MarkerToolbar({
   enabled,
   color,
   width,
+  displayMode,
   onToggle,
   onEnable,
+  onDisplayModeChange,
   onColorChange,
   onWidthChange,
   onUndo,
@@ -45,6 +49,20 @@ export function MarkerToolbar({
       <button onClick={onEnterFullscreen} style={ghostButtonStyle}>
         全画面
       </button>
+      <div style={chipStyle}>
+        <button
+          onClick={() => onDisplayModeChange("fit")}
+          style={modeButtonStyle(displayMode === "fit")}
+        >
+          フィット
+        </button>
+        <button
+          onClick={() => onDisplayModeChange("native")}
+          style={modeButtonStyle(displayMode === "native")}
+        >
+          等倍
+        </button>
+      </div>
       <button
         onClick={onToggle}
         style={{
@@ -127,3 +145,14 @@ const ghostButtonStyle: React.CSSProperties = {
   color: "#fff",
   fontSize: 12,
 };
+
+function modeButtonStyle(selected: boolean): React.CSSProperties {
+  return {
+    padding: "4px 9px",
+    borderRadius: 999,
+    border: selected ? "1px solid #4cc9f0" : "1px solid transparent",
+    background: selected ? "rgba(76, 201, 240, 0.18)" : "transparent",
+    color: selected ? "#fff" : "#aaa",
+    fontSize: 12,
+  };
+}

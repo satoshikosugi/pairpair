@@ -1,4 +1,4 @@
-import type { ControlMessage } from "@pairpair/shared";
+import type { ControlMessage, InputEvent } from "@pairpair/shared";
 import { useSettingsStore } from "../store/settings-store";
 import { useSessionStore } from "../store/session-store";
 import { signalingClient } from "./signaling-client";
@@ -8,6 +8,8 @@ let peerConnection: RTCPeerConnection | null = null;
 let localStream: MediaStream | null = null;
 let remoteStream: MediaStream | null = null;
 let remoteVideoElement: HTMLVideoElement | null = null;
+let hostInputHandler: ((event: InputEvent) => void) | null = null;
+let hostControlHandler: ((message: ControlMessage) => void) | null = null;
 
 function attachRemoteStreamToElement(): void {
   if (!remoteVideoElement || !remoteStream) return;
@@ -31,7 +33,10 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
 
   dataChannelManager.setupAsHost(pc);
 
-  dataChannelManager.onInput(async (event) => {
+  if (hostInputHandler) {
+    dataChannelManager.offInput(hostInputHandler);
+  }
+  hostInputHandler = async (event) => {
     const controlState = useSessionStore.getState().controlState;
     if (controlState === "controlAllowed") {
       const injected = await window.pairpair.injectInput(event);
@@ -39,9 +44,13 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
         console.error("[PairPair] Failed to inject remote input event", event);
       }
     }
-  });
+  };
+  dataChannelManager.onInput(hostInputHandler);
 
-  dataChannelManager.onControl((message: ControlMessage) => {
+  if (hostControlHandler) {
+    dataChannelManager.offControl(hostControlHandler);
+  }
+  hostControlHandler = (message: ControlMessage) => {
     if (message.type === "remoteControl.request") {
       useSessionStore.getState().setControlState("controlRequested");
     } else if (message.type === "remoteControl.grabbed") {
@@ -50,7 +59,8 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
     } else if (message.type === "ping") {
       dataChannelManager.sendControl({ type: "pong", timestamp: message.timestamp });
     }
-  });
+  };
+  dataChannelManager.onControl(hostControlHandler);
 
   // Tell main process which source to use before getDisplayMedia fires
   await window.pairpair.setSelectedSource(sourceId);
@@ -255,6 +265,14 @@ export async function handleIce(candidate: string, sdpMid: string | null, sdpMLi
 }
 
 export function closePeerConnection(): void {
+  if (hostInputHandler) {
+    dataChannelManager.offInput(hostInputHandler);
+    hostInputHandler = null;
+  }
+  if (hostControlHandler) {
+    dataChannelManager.offControl(hostControlHandler);
+    hostControlHandler = null;
+  }
   dataChannelManager.close();
   if (localStream) {
     localStream.getTracks().forEach((t) => t.stop());

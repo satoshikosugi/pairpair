@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from "react";
+import React, { useRef, useCallback, useEffect, useState } from "react";
 import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, MouseDownEvent, MouseMoveEvent, MouseUpEvent, MouseWheelEvent } from "@pairpair/shared";
 import { toNormalizedCoordinate } from "../utils/coordinate";
 import { useSessionStore } from "../store/session-store";
@@ -17,6 +17,7 @@ interface RemoteVideoViewProps {
   onMarkerEnd: () => void;
   onHoverPreview: (point: AnnotationPoint | null) => void;
   fullscreen: boolean;
+  displayMode: "fit" | "native";
 }
 
 export function RemoteVideoView({
@@ -29,13 +30,24 @@ export function RemoteVideoView({
   onMarkerEnd,
   onHoverPreview,
   fullscreen,
+  displayMode,
 }: RemoteVideoViewProps): React.ReactElement {
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastMouseMoveTime = useRef(0);
   const lastMousePos = useRef({ x: -1, y: -1 });
   const isDrawingRef = useRef(false);
   const { controlState } = useSessionStore();
   const canControl = controlState === "controlAllowed";
+  const fitToViewport = displayMode === "fit";
+  const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+
+  const updateVideoSize = useCallback(() => {
+    const video = videoRef.current;
+    if (!video?.videoWidth || !video.videoHeight) return;
+    setVideoSize({ width: video.videoWidth, height: video.videoHeight });
+  }, []);
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -49,6 +61,36 @@ export function RemoteVideoView({
       bindRemoteVideoElement(null);
     };
   }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateViewportSize = () => {
+      const styles = window.getComputedStyle(container);
+      const horizontalPadding = Number.parseFloat(styles.paddingLeft) + Number.parseFloat(styles.paddingRight);
+      const verticalPadding = Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom);
+      setViewportSize({
+        width: Math.max(0, container.clientWidth - horizontalPadding),
+        height: Math.max(0, container.clientHeight - verticalPadding),
+      });
+    };
+
+    const observer = new ResizeObserver(updateViewportSize);
+    observer.observe(container);
+    updateViewportSize();
+    return () => observer.disconnect();
+  }, [fullscreen]);
+
+  const displaySize = (() => {
+    if (!videoSize.width || !videoSize.height) return null;
+    if (!fitToViewport || !viewportSize.width || !viewportSize.height) return videoSize;
+    const scale = Math.min(viewportSize.width / videoSize.width, viewportSize.height / videoSize.height);
+    return {
+      width: Math.max(1, Math.round(videoSize.width * scale)),
+      height: Math.max(1, Math.round(videoSize.height * scale)),
+    };
+  })();
 
   const getPoint = useCallback((clientX: number, clientY: number): AnnotationPoint | null => {
     if (!videoRef.current) return null;
@@ -182,16 +224,28 @@ export function RemoteVideoView({
 
   return (
     <div
+      ref={containerRef}
       style={{
         flex: 1,
-        display: "flex",
+        display: fitToViewport ? "flex" : "block",
         alignItems: "center",
         justifyContent: "center",
         background: "#000",
         padding: fullscreen ? 0 : 12,
+        minWidth: 0,
+        minHeight: 0,
+        overflow: fitToViewport ? "hidden" : "auto",
       }}
     >
-      <div style={{ position: "relative", display: "inline-flex", maxWidth: "100%", maxHeight: "100%" }}>
+      <div
+        style={{
+          position: "relative",
+          display: "inline-flex",
+          flex: "0 0 auto",
+          width: displaySize?.width,
+          height: displaySize?.height,
+        }}
+      >
         <video
           ref={videoRef}
           id="remote-video"
@@ -199,6 +253,8 @@ export function RemoteVideoView({
           autoPlay
           muted
           playsInline
+          onLoadedMetadata={updateVideoSize}
+          onResize={updateVideoSize}
           onMouseMove={handleMouseMove}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
@@ -206,8 +262,9 @@ export function RemoteVideoView({
           onWheel={handleWheel}
           onMouseLeave={handleMouseLeave}
           style={{
-            maxWidth: "100%",
-            maxHeight: "100%",
+            display: "block",
+            width: displaySize?.width ?? "auto",
+            height: displaySize?.height ?? "auto",
             cursor: markerEnabled ? "cell" : canControl ? "crosshair" : "default",
             userSelect: "none",
           }}

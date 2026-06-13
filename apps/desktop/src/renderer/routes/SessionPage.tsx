@@ -11,7 +11,6 @@ import type {
   KeyboardUpEvent,
   QualityPreset,
   QualityPresetName,
-  TextInputEvent,
 } from "@pairpair/shared";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
@@ -89,6 +88,7 @@ export function SessionPage(): React.ReactElement {
   const [remoteCursor, setRemoteCursor] = useState<GuestCursorIndicator | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenHintVisible, setFullscreenHintVisible] = useState(false);
+  const [displayMode, setDisplayMode] = useState<"fit" | "native">("fit");
 
   const adaptiveInputHandlerRef = useRef<((e: PairPairInputEvent) => void) | null>(null);
   const hasAutoEnabledRef = useRef(false);
@@ -572,7 +572,9 @@ export function SessionPage(): React.ReactElement {
       e.preventDefault();
       const imeEvent = getImeModeEvent(e);
       if (imeEvent) {
-        dataChannelManager.sendInput(imeEvent);
+        if (!e.repeat) {
+          dataChannelManager.sendInput(imeEvent);
+        }
         return;
       }
       const event: KeyboardDownEvent = {
@@ -608,23 +610,12 @@ export function SessionPage(): React.ReactElement {
       dataChannelManager.sendInput(event);
     };
 
-    const handleInput = (e: Event) => {
-      if (controlState !== "controlAllowed") return;
-      const inputEvent = e as globalThis.InputEvent;
-      if (inputEvent.data) {
-        const event: TextInputEvent = { type: "text.input", text: inputEvent.data };
-        dataChannelManager.sendInput(event);
-      }
-    };
-
     document.addEventListener("keydown", handleKeyDown, { capture: true });
     document.addEventListener("keyup", handleKeyUp, { capture: true });
-    document.addEventListener("input", handleInput, { capture: true });
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown, { capture: true });
       document.removeEventListener("keyup", handleKeyUp, { capture: true });
-      document.removeEventListener("input", handleInput, { capture: true });
     };
   }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled]);
 
@@ -787,8 +778,10 @@ export function SessionPage(): React.ReactElement {
             enabled={markerEnabled}
             color={markerColor}
             width={markerWidth}
+            displayMode={displayMode}
             onToggle={() => setMarkerEnabled((prev) => !prev)}
             onEnable={() => setMarkerEnabled(true)}
+            onDisplayModeChange={setDisplayMode}
             onColorChange={setMarkerColor}
             onWidthChange={setMarkerWidth}
             onUndo={handleUndoAnnotation}
@@ -822,6 +815,7 @@ export function SessionPage(): React.ReactElement {
         onMarkerEnd={endMarkerStroke}
         onHoverPreview={handleHoverPreview}
         fullscreen={fullscreen}
+        displayMode={displayMode}
       />
 
       {fullscreen && fullscreenHintVisible && (

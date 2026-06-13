@@ -17,6 +17,7 @@ export class SignalingClient {
   private intentionalClose = false;
 
   connect(wsUrl: string, sessionId: string, token: string, role: "host" | "guest"): void {
+    this.messageHandlers.clear();
     this.wsUrl = wsUrl;
     this.sessionId = sessionId;
     this.token = token;
@@ -84,6 +85,7 @@ export class SignalingClient {
       this.ws.close();
       this.ws = null;
     }
+    this.messageHandlers.clear();
   }
 
   send(message: Partial<SignalingMessage> & Record<string, unknown>): void {

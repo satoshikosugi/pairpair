@@ -78,7 +78,7 @@ export function SessionPage(): React.ReactElement {
   const [showStats, setShowStats] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(currentQualityPreset);
   const [customPreset, setCustomPreset] = useState<Partial<QualityPreset>>(customQualityPreset);
-  const [adaptiveMode, setAdaptiveMode] = useState(adaptiveModeActive);
+  const [adaptiveMode, setAdaptiveMode] = useState(adaptiveModeActive || adaptiveQualityController.enabled);
   const [adaptiveState, setAdaptiveState] = useState(adaptiveQualityController.state);
   const [adaptiveResPreset, setAdaptiveResPreset] = useState<Exclude<QualityPresetName, "Custom">>(
     (adaptiveBasePreset !== "Custom" ? adaptiveBasePreset : "Balanced") as Exclude<QualityPresetName, "Custom">,
@@ -94,7 +94,6 @@ export function SessionPage(): React.ReactElement {
   const [displayMode, setDisplayMode] = useState<"fit" | "native">("fit");
 
   const adaptiveInputHandlerRef = useRef<((e: PairPairInputEvent) => void) | null>(null);
-  const hasAutoEnabledRef = useRef(false);
   const metricsStopRef = useRef<(() => void) | null>(null);
   const sharpnessStopRef = useRef<(() => void) | null>(null);
   const controlMessageHandlerRef = useRef<((message: ControlMessage) => void) | null>(null);
@@ -113,6 +112,11 @@ export function SessionPage(): React.ReactElement {
     typing: "タイプ中",
     clicking: "クリック",
   };
+
+  const getAdaptiveProfile = useCallback(
+    (state: keyof typeof STATE_LABEL) => adaptiveQualityController.getProfile(state) ?? pairproProfiles[state],
+    [pairproProfiles],
+  );
 
   const syncHostOverlay = useCallback(
     (nextStrokes: AnnotationStroke[], nextCursor: GuestCursorIndicator | null) => {
@@ -159,6 +163,7 @@ export function SessionPage(): React.ReactElement {
     );
     useSessionStore.getState().setAdaptiveModeActive(true);
     setAdaptiveMode(true);
+    setAdaptiveState(adaptiveQualityController.state);
   }, [adaptiveResPreset, pairproProfiles]);
 
   const disableAdaptive = useCallback(() => {
@@ -169,6 +174,7 @@ export function SessionPage(): React.ReactElement {
     void applyQualityPreset(preset).catch(console.warn);
     useSessionStore.getState().setAdaptiveModeActive(false);
     setAdaptiveMode(false);
+    setAdaptiveState("idle");
   }, [customPreset, selectedPreset]);
 
   const finalizeSession = useCallback(() => {
@@ -379,11 +385,10 @@ export function SessionPage(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    if (isHost && adaptiveModeActive && !hasAutoEnabledRef.current) {
-      hasAutoEnabledRef.current = true;
+    if (isHost && adaptiveMode && !adaptiveQualityController.enabled) {
       enableAdaptive();
     }
-  }, [adaptiveModeActive, enableAdaptive, isHost]);
+  }, [adaptiveMode, enableAdaptive, isHost]);
 
   useEffect(() => {
     if (!isHost) return;
@@ -742,15 +747,13 @@ export function SessionPage(): React.ReactElement {
                 </div>
 
                 <div style={{ color: "#4a9eff", marginBottom: 12, fontWeight: "bold" }}>
-                  状態: {STATE_LABEL[adaptiveState]} - {adaptiveQualityController.getProfile(adaptiveState)?.fps ?? 0} fps /{" "}
-                  {adaptiveQualityController.getProfile(adaptiveState)
-                    ? calcBitrateMbps(
-                        adaptiveQualityController.getProfile(adaptiveState)!.quality,
-                        QUALITY_PRESETS[adaptiveResPreset].width,
-                        QUALITY_PRESETS[adaptiveResPreset].height,
-                        adaptiveQualityController.getProfile(adaptiveState)!.fps,
-                      )
-                    : 0}{" "}
+                  状態: {STATE_LABEL[adaptiveState]} - {getAdaptiveProfile(adaptiveState).fps} fps /{" "}
+                  {calcBitrateMbps(
+                    getAdaptiveProfile(adaptiveState).quality,
+                    QUALITY_PRESETS[adaptiveResPreset].width,
+                    QUALITY_PRESETS[adaptiveResPreset].height,
+                    getAdaptiveProfile(adaptiveState).fps,
+                  )}{" "}
                   Mbps
                 </div>
 
@@ -765,8 +768,7 @@ export function SessionPage(): React.ReactElement {
 
                 {/* Rows for each state */}
                 {(["idle", "mouse_moving", "scrolling", "typing", "clicking"] as const).map((state) => {
-                  const profile = adaptiveQualityController.getProfile(state);
-                  if (!profile) return null;
+                  const profile = getAdaptiveProfile(state);
                   return (
                     <div key={state} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #333" }}>
                       {/* State label */}

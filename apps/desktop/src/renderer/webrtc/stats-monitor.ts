@@ -19,6 +19,7 @@ let statsInterval: ReturnType<typeof setInterval> | null = null;
 let onStatsUpdate: ((stats: WebRTCStats) => void) | null = null;
 let lastBytesReceived = 0;
 let lastBytesSent = 0;
+let lastFramesSent = 0;
 let lastStatsTime = 0;
 
 export function startStatsMonitor(callback: (stats: WebRTCStats) => void): void {
@@ -27,6 +28,7 @@ export function startStatsMonitor(callback: (stats: WebRTCStats) => void): void 
   // doesn't show near-zero bitrate (stale values from previous session).
   lastBytesReceived = 0;
   lastBytesSent = 0;
+  lastFramesSent = 0;
   lastStatsTime = 0;
   stopStatsMonitor();
   statsInterval = setInterval(() => {
@@ -84,12 +86,24 @@ async function collectStats(): Promise<void> {
       if (report.type === "outbound-rtp" && (report as RTCOutboundRtpStreamStats).kind === "video") {
         const r = report as RTCOutboundRtpStreamStats & {
           bytesSent?: number;
+          framesSent?: number;
+          frameWidth?: number;
+          frameHeight?: number;
+          qualityLimitationReason?: string;
           encoderImplementation?: string;
         };
         if (r.bytesSent !== undefined) {
           const bytesDelta = r.bytesSent - lastBytesSent;
           stats.bitrateMbps = (bytesDelta * 8) / dt / 1_000_000;
           lastBytesSent = r.bytesSent;
+        }
+        if (r.framesSent !== undefined) {
+          const framesDelta = r.framesSent - lastFramesSent;
+          stats.fps = dt > 0 ? framesDelta / dt : 0;
+          lastFramesSent = r.framesSent;
+        }
+        if (r.frameWidth && r.frameHeight) {
+          stats.resolution = `${r.frameWidth}x${r.frameHeight}`;
         }
         stats.encoderImplementation = r.encoderImplementation;
       }

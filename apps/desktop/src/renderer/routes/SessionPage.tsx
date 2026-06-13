@@ -288,6 +288,10 @@ export function SessionPage(): React.ReactElement {
   }, []);
 
   const preparePeerReconnection = useCallback(() => {
+    console.info("[PairPair][RoleSwitch] preparePeerReconnection", {
+      role: useSessionStore.getState().role,
+      sessionId,
+    });
     clearRoleSwitchTimeout();
     signalingClient.send({ type: "session.roleSwitch.prepare" });
     hostPeerAuthenticator.reset();
@@ -311,6 +315,11 @@ export function SessionPage(): React.ReactElement {
     }
 
     const nextHostName = guestDeviceName ?? "PairPair Guest";
+    console.info("[PairPair][RoleSwitch] reconnectAsGuestAfterRoleSwitch", {
+      sessionId,
+      nextHostName,
+      tokenPreview: nextGuestToken.slice(0, 8),
+    });
     preparePeerReconnection();
 
     useSessionStore.getState().setRole("guest");
@@ -332,11 +341,13 @@ export function SessionPage(): React.ReactElement {
     });
 
     signalingClient.on("rtc.offer", (msg) => {
+      console.info("[PairPair][RoleSwitch] guest received rtc.offer");
       const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
       void handleOffer(sdp).catch(console.error);
     });
 
     signalingClient.on("rtc.ice", (msg) => {
+      console.info("[PairPair][RoleSwitch] guest received rtc.ice");
       const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
       void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
     });
@@ -370,6 +381,12 @@ export function SessionPage(): React.ReactElement {
       ? ({ ...customPreset, name: "Custom" } as QualityPreset)
       : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
     const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveResPreset] : undefined;
+    console.info("[PairPair][RoleSwitch] reconnectAsHostAfterRoleSwitch", {
+      sessionId,
+      sourceId: source.id,
+      sourceName: source.name,
+      tokenPreview: nextHostToken.slice(0, 8),
+    });
 
     preparePeerReconnection();
     await hostPeerAuthenticator.prepare(code, "");
@@ -392,6 +409,7 @@ export function SessionPage(): React.ReactElement {
     });
 
     signalingClient.on("guest.joined", () => {
+      console.info("[PairPair][RoleSwitch] host received guest.joined");
       void createPeerConnectionAsHost()
         .then(() => {
           hostPeerAuthenticator.start(
@@ -425,11 +443,13 @@ export function SessionPage(): React.ReactElement {
     });
 
     signalingClient.on("rtc.answer", (msg) => {
+      console.info("[PairPair][RoleSwitch] host received rtc.answer");
       const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
       void handleAnswer(sdp).catch(console.error);
     });
 
     signalingClient.on("rtc.ice", (msg) => {
+      console.info("[PairPair][RoleSwitch] host received rtc.ice");
       const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
       void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
     });
@@ -457,6 +477,11 @@ export function SessionPage(): React.ReactElement {
     }
 
     pendingRoleSwitchSourceRef.current = source;
+    console.info("[PairPair][RoleSwitch] startGuestToHostRoleSwitch", {
+      sessionId,
+      sourceId: source.id,
+      sourceName: source.name,
+    });
     setShowRoleSwitchPicker(false);
     setRoleSwitchInProgress(true);
     useSessionStore.getState().setRoleSwitchInProgress(true);
@@ -955,6 +980,7 @@ export function SessionPage(): React.ReactElement {
         }
         case "session.roleSwitch.request": {
           if (!isHost || !hostToken) return;
+          console.info("[PairPair][RoleSwitch] host received roleSwitch.request");
           setRoleSwitchInProgress(true);
           useSessionStore.getState().setRoleSwitchInProgress(true);
           clearRoleSwitchTimeout();
@@ -972,6 +998,7 @@ export function SessionPage(): React.ReactElement {
           if (isHost) return;
           const source = pendingRoleSwitchSourceRef.current;
           if (!source) return;
+          console.info("[PairPair][RoleSwitch] guest received roleSwitch.ready");
           clearRoleSwitchTimeout();
           pendingRoleSwitchSourceRef.current = null;
           window.setTimeout(() => {

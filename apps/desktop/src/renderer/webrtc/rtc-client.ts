@@ -25,6 +25,7 @@ function getIceServers(): RTCIceServer[] {
 }
 
 export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
+  console.info("[PairPair][RTC] createPeerConnectionAsHost");
   const pc = new RTCPeerConnection({
     iceServers: getIceServers(),
     iceTransportPolicy: "all",
@@ -83,6 +84,9 @@ export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
   };
 
   pc.onconnectionstatechange = () => {
+    console.info("[PairPair][RTC] host connectionstatechange", {
+      state: pc.connectionState,
+    });
     useSessionStore.getState().setConnectionState(
       pc.connectionState as "idle" | "connecting" | "connected" | "disconnected" | "failed"
     );
@@ -116,6 +120,10 @@ export async function startHostScreenShare(
   sourceId: string,
   qualityPreset?: import("@pairpair/shared").QualityPreset,
 ): Promise<void> {
+  console.info("[PairPair][RTC] startHostScreenShare", {
+    sourceId,
+    preset: qualityPreset?.name ?? null,
+  });
   const pc = peerConnection;
   if (!pc) throw new Error("Peer connection is not ready");
 
@@ -170,6 +178,7 @@ export function markPeerAuthenticated(): void {
 }
 
 export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> {
+  console.info("[PairPair][RTC] createPeerConnectionAsGuest");
   const pc = new RTCPeerConnection({
     iceServers: getIceServers(),
     iceTransportPolicy: "all",
@@ -196,6 +205,9 @@ export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> 
   pc.ontrack = (event) => {
     if (!event.streams[0]) return;
     remoteStream = event.streams[0];
+    console.info("[PairPair][RTC] guest ontrack", {
+      tracks: event.streams[0].getTracks().map((track) => track.kind),
+    });
     attachRemoteStreamToElement();
   };
 
@@ -213,6 +225,9 @@ export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> 
   };
 
   pc.onconnectionstatechange = () => {
+    console.info("[PairPair][RTC] guest connectionstatechange", {
+      state: pc.connectionState,
+    });
     useSessionStore.getState().setConnectionState(
       pc.connectionState as "idle" | "connecting" | "connected" | "disconnected" | "failed"
     );
@@ -227,6 +242,9 @@ export async function createPeerConnectionAsGuest(): Promise<RTCPeerConnection> 
 
 export async function handleOffer(sdp: string): Promise<void> {
   if (!peerConnection) return;
+  console.info("[PairPair][RTC] handleOffer", {
+    sdpLength: sdp.length,
+  });
   await peerConnection.setRemoteDescription({ type: "offer", sdp });
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
@@ -235,11 +253,19 @@ export async function handleOffer(sdp: string): Promise<void> {
 
 export async function handleAnswer(sdp: string): Promise<void> {
   if (!peerConnection) return;
+  console.info("[PairPair][RTC] handleAnswer", {
+    sdpLength: sdp.length,
+  });
   await peerConnection.setRemoteDescription({ type: "answer", sdp });
 }
 
 export async function handleIce(candidate: string, sdpMid: string | null, sdpMLineIndex: number | null): Promise<void> {
   if (!peerConnection) return;
+  console.info("[PairPair][RTC] handleIce", {
+    hasCandidate: Boolean(candidate),
+    sdpMid,
+    sdpMLineIndex,
+  });
   try {
     await peerConnection.addIceCandidate({ candidate, sdpMid, sdpMLineIndex });
   } catch (err) {

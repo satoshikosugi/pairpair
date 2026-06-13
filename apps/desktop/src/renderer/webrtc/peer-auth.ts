@@ -54,6 +54,7 @@ class HostPeerAuthenticator {
   }
 
   start(onSuccess: AuthSuccessHandler, onFailure: AuthFailureHandler): void {
+    console.info("[PairPair][Auth] host start");
     this.successHandler = onSuccess;
     this.failureHandler = onFailure;
     dataChannelManager.onControl(this.handleMessage);
@@ -114,6 +115,7 @@ class HostPeerAuthenticator {
   }
 
   private succeed(): void {
+    console.info("[PairPair][Auth] host success");
     dataChannelManager.sendControl({ type: "auth.result", success: true });
     const handler = this.successHandler;
     this.stop();
@@ -121,6 +123,7 @@ class HostPeerAuthenticator {
   }
 
   private fail(reason: "invalid_code" | "invalid_passphrase" | "protocol_error"): void {
+    console.warn("[PairPair][Auth] host fail", { reason });
     dataChannelManager.sendControl({ type: "auth.result", success: false, reason });
     const handler = this.failureHandler;
     this.stop();
@@ -157,6 +160,9 @@ class GuestPeerAuthenticator {
     onSuccess: AuthSuccessHandler,
     onFailure: AuthFailureHandler,
   ): void {
+    console.info("[PairPair][Auth] guest start", {
+      codeLength: code.length,
+    });
     this.stop();
     this.code = code;
     this.requiredHandler = onRequired;
@@ -166,12 +172,16 @@ class GuestPeerAuthenticator {
     this.helloHandler = () => {
       if (this.helloHandler) dataChannelManager.offControlOpen(this.helloHandler);
       this.helloHandler = null;
+      console.info("[PairPair][Auth] guest send hello");
       dataChannelManager.sendControl({ type: "auth.hello", code });
     };
     dataChannelManager.onControlOpen(this.helloHandler);
   }
 
   async submitPassphrase(passphrase: string): Promise<void> {
+    console.info("[PairPair][Auth] guest submit passphrase", {
+      length: passphrase.length,
+    });
     this.client = new OpaqueClient(config);
     const ke1 = await this.client.authInit(passphrase);
     if (ke1 instanceof Error) throw ke1;
@@ -185,10 +195,12 @@ class GuestPeerAuthenticator {
   private async handleMessageAsync(message: ControlMessage): Promise<void> {
     try {
       if (message.type === "auth.required") {
+        console.info("[PairPair][Auth] guest auth.required");
         this.requiredHandler?.();
         return;
       }
       if (message.type === "auth.ke2" && this.client) {
+        console.info("[PairPair][Auth] guest auth.ke2");
         const result = await this.client.authFinish(
           KE2.deserialize(config, message.payload),
           SERVER_ID,
@@ -204,10 +216,14 @@ class GuestPeerAuthenticator {
       }
       if (message.type === "auth.result") {
         if (message.success) {
+          console.info("[PairPair][Auth] guest success");
           const handler = this.successHandler;
           this.stop();
           handler?.();
         } else {
+          console.warn("[PairPair][Auth] guest fail", {
+            reason: message.reason ?? "protocol_error",
+          });
           this.failureHandler?.(message.reason ?? "protocol_error");
         }
       }

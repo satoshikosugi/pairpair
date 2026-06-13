@@ -4,6 +4,7 @@
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
+    "predev": "npx pnpm@9 --dir ../../packages/native-input build:native && npx pnpm@9 --dir ../../packages/native-input build",
     "build": "electron-vite build",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",

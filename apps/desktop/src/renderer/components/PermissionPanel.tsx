@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { getPermissionPreset, type PermissionPresetId, type TextInputEvent } from "@pairpair/shared";
+import { getPermissionPreset, type PermissionPresetId } from "@pairpair/shared";
 import type { ClipboardHistoryEntry } from "../store/session-store";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";

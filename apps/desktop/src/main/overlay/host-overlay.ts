@@ -129,8 +129,8 @@ const OVERLAY_HTML = `<!DOCTYPE html>
         const spotlightState = state.spotlight;
         if (spotlightState && spotlightState.visible) {
           spotlight.style.display = "block";
-          spotlight.style.left = `${spotlightState.x * 100}%`;
-          spotlight.style.top = `${spotlightState.y * 100}%`;
+          spotlight.style.left = \`\${spotlightState.x * 100}%\`;
+          spotlight.style.top = \`\${spotlightState.y * 100}%\`;
           spotlightLabel.textContent = spotlightState.label || "注目";
         } else {
           spotlight.style.display = "none";

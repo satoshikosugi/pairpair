@@ -333,7 +333,9 @@ export function RemoteVideoView({
             display: "block",
             width: displaySize?.width ?? "auto",
             height: displaySize?.height ?? "auto",
-            cursor: markerEnabled ? "cell" : canControl ? "crosshair" : !fitToViewport ? "grab" : "default",
+            // During remote control, rely on the host cursor rendered in the shared video
+            // so resize/text/drag affordances match the actual target application.
+            cursor: markerEnabled ? "cell" : canControl ? "none" : !fitToViewport ? "grab" : "default",
             userSelect: "none",
           }}
         />

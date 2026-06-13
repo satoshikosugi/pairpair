@@ -132,6 +132,7 @@ async function handleMessage(
 
     case "session.roleSwitch.prepare":
       markRoleSwitchInProgress(sessionId);
+      ws.send(JSON.stringify({ type: "session.roleSwitch.prepared", sessionId }));
       break;
 
     default:

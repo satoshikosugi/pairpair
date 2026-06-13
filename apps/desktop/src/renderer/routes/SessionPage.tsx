@@ -292,8 +292,25 @@ export function SessionPage(): React.ReactElement {
       `[PairPair][RoleSwitch] preparePeerReconnection role=${String(useSessionStore.getState().role)} sessionId=${sessionId ?? "<none>"}`,
     );
     clearRoleSwitchTimeout();
-    signalingClient.send({ type: "session.roleSwitch.prepare" });
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    const prepared = await new Promise<boolean>((resolve) => {
+      const timeoutId = window.setTimeout(() => {
+        signalingClient.off("session.roleSwitch.prepared", handlePrepared);
+        resolve(false);
+      }, 3000);
+
+      const handlePrepared = () => {
+        window.clearTimeout(timeoutId);
+        signalingClient.off("session.roleSwitch.prepared", handlePrepared);
+        resolve(true);
+      };
+
+      signalingClient.on("session.roleSwitch.prepared", handlePrepared);
+      signalingClient.send({ type: "session.roleSwitch.prepare" });
+    });
+    console.info(`[PairPair][RoleSwitch] preparePeerReconnection prepared=${prepared}`);
+    if (!prepared) {
+      throw new Error("roleSwitch.prepare acknowledgement timed out");
+    }
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();
     activeStrokeRef.current = null;

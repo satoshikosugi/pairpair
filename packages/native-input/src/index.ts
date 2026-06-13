@@ -23,6 +23,7 @@ declare const process:
   | undefined;
 
 let nativeModule: NativeInputModule | null = null;
+let attemptedLoad = false;
 
 function getPackagedBinaryPath(): string | null {
   if (typeof process === "undefined" || !process.versions?.electron) return null;
@@ -70,7 +71,8 @@ function loadNativeModule(): NativeInputModule | null {
 }
 
 function getModule(): NativeInputModule {
-  if (!nativeModule) {
+  if (!attemptedLoad) {
+    attemptedLoad = true;
     nativeModule = loadNativeModule();
   }
   if (!nativeModule) {
@@ -85,6 +87,14 @@ function getModule(): NativeInputModule {
     };
   }
   return nativeModule;
+}
+
+export function isNativeInputAvailable(): boolean {
+  if (!attemptedLoad) {
+    attemptedLoad = true;
+    nativeModule = loadNativeModule();
+  }
+  return nativeModule !== null;
 }
 
 export function moveMouse(x: number, y: number): void {

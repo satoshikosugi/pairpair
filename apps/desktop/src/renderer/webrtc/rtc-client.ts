@@ -34,7 +34,10 @@ export async function createPeerConnectionAsHost(sourceId: string, qualityPreset
   dataChannelManager.onInput(async (event) => {
     const controlState = useSessionStore.getState().controlState;
     if (controlState === "controlAllowed") {
-      await window.pairpair.injectInput(event);
+      const injected = await window.pairpair.injectInput(event);
+      if (!injected) {
+        console.error("[PairPair] Failed to inject remote input event", event);
+      }
     }
   });
 

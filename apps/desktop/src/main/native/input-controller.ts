@@ -2,7 +2,7 @@ import { screen } from "electron";
 import log from "electron-log";
 import type { InputEvent } from "@pairpair/shared";
 import * as nativeInput from "@pairpair/native-input";
-import { DOM_KEY_TO_VK } from "@pairpair/native-input";
+import { DOM_KEY_TO_VK, isNativeInputAvailable } from "@pairpair/native-input";
 
 export interface CaptureArea {
   x: number;
@@ -42,8 +42,13 @@ function normalizedToScreen(normalizedX: number, normalizedY: number, area: Capt
   return { x, y };
 }
 
-export function injectInputEvent(event: InputEvent): void {
+export function injectInputEvent(event: InputEvent): boolean {
   const area = currentCaptureArea ?? getCaptureAreaFromDisplay();
+
+  if (!isNativeInputAvailable()) {
+    log.error("Native input module is unavailable; input injection skipped", { eventType: event.type });
+    return false;
+  }
 
   try {
     switch (event.type) {
@@ -92,7 +97,9 @@ export function injectInputEvent(event: InputEvent): void {
         break;
       }
     }
+    return true;
   } catch (err) {
     log.error("Input injection error:", err);
+    return false;
   }
 }

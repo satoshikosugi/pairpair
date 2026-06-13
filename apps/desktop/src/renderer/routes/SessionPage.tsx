@@ -145,10 +145,6 @@ export function SessionPage(): React.ReactElement {
     const basePresetName = resPreset ?? adaptiveResPreset;
     useSessionStore.getState().setAdaptiveBasePreset(basePresetName);
 
-    const handler = (event: PairPairInputEvent) => adaptiveQualityController.onInputEvent(event);
-    adaptiveInputHandlerRef.current = handler;
-    dataChannelManager.onInput(handler);
-
     const actual = getLocalStreamResolution();
     adaptiveQualityController.enable(
       pairproProfiles,
@@ -164,10 +160,6 @@ export function SessionPage(): React.ReactElement {
 
   const disableAdaptive = useCallback(() => {
     adaptiveQualityController.disable();
-    if (adaptiveInputHandlerRef.current) {
-      dataChannelManager.offInput(adaptiveInputHandlerRef.current);
-      adaptiveInputHandlerRef.current = null;
-    }
     const preset = selectedPreset === "Custom"
       ? ({ ...customPreset, name: "Custom" } as QualityPreset)
       : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
@@ -409,6 +401,22 @@ export function SessionPage(): React.ReactElement {
       void window.pairpair.stopActivityMonitor();
     };
   }, [adaptiveMode, controlState, handleReturnControlToHost, isHost]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    if (!adaptiveMode) return;
+
+    const handler = (event: PairPairInputEvent) => adaptiveQualityController.onInputEvent(event);
+    adaptiveInputHandlerRef.current = handler;
+    dataChannelManager.onInput(handler);
+
+    return () => {
+      if (adaptiveInputHandlerRef.current) {
+        dataChannelManager.offInput(adaptiveInputHandlerRef.current);
+        adaptiveInputHandlerRef.current = null;
+      }
+    };
+  }, [isHost, adaptiveMode]);
 
   useEffect(() => {
     if (isHost) return;

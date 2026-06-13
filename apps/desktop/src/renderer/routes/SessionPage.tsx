@@ -92,6 +92,8 @@ export function SessionPage(): React.ReactElement {
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenHintVisible, setFullscreenHintVisible] = useState(false);
   const [displayMode, setDisplayMode] = useState<"fit" | "native">("fit");
+  const [toolboxMinimized, setToolboxMinimized] = useState(false);
+  const [toolboxPosition, setToolboxPosition] = useState({ x: 18, y: 18 });
 
   const adaptiveInputHandlerRef = useRef<((e: PairPairInputEvent) => void) | null>(null);
   const metricsStopRef = useRef<(() => void) | null>(null);
@@ -103,6 +105,7 @@ export function SessionPage(): React.ReactElement {
   const activeStrokeRef = useRef<string | null>(null);
   const annotationsRef = useRef<AnnotationStroke[]>([]);
   const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
+  const toolboxDragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const isHost = role === "host";
 
   const STATE_LABEL: Record<string, string> = {
@@ -317,6 +320,10 @@ export function SessionPage(): React.ReactElement {
     void window.pairpair.setGuestFullscreen(true).catch(console.error);
   }, []);
 
+  const toggleGuestFullscreen = useCallback(() => {
+    void window.pairpair.setGuestFullscreen(!fullscreen).catch(console.error);
+  }, [fullscreen]);
+
   useEffect(() => {
     startStatsMonitor(setStats);
     void window.pairpair.registerShortcuts(isHost).catch(console.error);
@@ -365,6 +372,10 @@ export function SessionPage(): React.ReactElement {
       }
 
       if (nextFullscreen) {
+        setToolboxPosition((prev) => ({
+          x: Math.max(12, prev.x),
+          y: Math.max(12, prev.y),
+        }));
         setFullscreenHintVisible(true);
         fullscreenHintTimerRef.current = window.setTimeout(() => {
           setFullscreenHintVisible(false);
@@ -383,6 +394,81 @@ export function SessionPage(): React.ReactElement {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!fullscreen) {
+      setToolboxMinimized(false);
+    }
+  }, [fullscreen]);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = toolboxDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const panelWidth = toolboxMinimized ? 240 : 320;
+      const nextX = drag.originX + (event.clientX - drag.startX);
+      const nextY = drag.originY + (event.clientY - drag.startY);
+      setToolboxPosition({
+        x: Math.min(Math.max(12, nextX), Math.max(12, window.innerWidth - panelWidth - 12)),
+        y: Math.min(Math.max(12, nextY), Math.max(12, window.innerHeight - 72)),
+      });
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (toolboxDragRef.current?.pointerId === event.pointerId) {
+        toolboxDragRef.current = null;
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [fullscreen, toolboxMinimized]);
+
+  const handleToolboxDragStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!fullscreen) return;
+    toolboxDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: toolboxPosition.x,
+      originY: toolboxPosition.y,
+    };
+  }, [fullscreen, toolboxPosition.x, toolboxPosition.y]);
+
+  const markerToolbar = (
+    <MarkerToolbar
+      enabled={markerEnabled}
+      color={markerColor}
+      width={markerWidth}
+      displayMode={displayMode}
+      wheelDirection={wheelDirection}
+      fullscreen={fullscreen}
+      minimized={toolboxMinimized}
+      onToggle={() => setMarkerEnabled((prev) => !prev)}
+      onEnable={() => setMarkerEnabled(true)}
+      onDisplayModeChange={setDisplayMode}
+      onWheelDirectionChange={(direction) => {
+        void saveToElectron("wheelDirection", direction);
+      }}
+      onColorChange={setMarkerColor}
+      onWidthChange={setMarkerWidth}
+      onUndo={handleUndoAnnotation}
+      onClear={handleClearAnnotations}
+      canUndo={annotations.length > 0}
+      hasStrokes={annotations.length > 0}
+      onToggleFullscreen={toggleGuestFullscreen}
+      onToggleMinimized={fullscreen ? () => setToolboxMinimized((prev) => !prev) : undefined}
+      dragHandleProps={fullscreen ? { onPointerDown: handleToolboxDragStart } : undefined}
+    />
+  );
 
   useEffect(() => {
     if (isHost && adaptiveMode && !adaptiveQualityController.enabled) {
@@ -967,26 +1053,7 @@ export function SessionPage(): React.ReactElement {
           <ConnectionStatus />
           <span style={{ color: "#aaa", fontSize: 13 }}>{hostDeviceName ?? "Host"}</span>
           <StatsOverlay stats={stats} visible={showStats} onToggle={() => setShowStats(!showStats)} />
-          <MarkerToolbar
-            enabled={markerEnabled}
-            color={markerColor}
-            width={markerWidth}
-            displayMode={displayMode}
-            wheelDirection={wheelDirection}
-            onToggle={() => setMarkerEnabled((prev) => !prev)}
-            onEnable={() => setMarkerEnabled(true)}
-            onDisplayModeChange={setDisplayMode}
-            onWheelDirectionChange={(direction) => {
-              void saveToElectron("wheelDirection", direction);
-            }}
-            onColorChange={setMarkerColor}
-            onWidthChange={setMarkerWidth}
-            onUndo={handleUndoAnnotation}
-            onClear={handleClearAnnotations}
-            canUndo={annotations.length > 0}
-            hasStrokes={annotations.length > 0}
-            onEnterFullscreen={enterFullscreen}
-          />
+          {markerToolbar}
           <button
             onClick={handleDisconnect}
             style={{
@@ -1016,6 +1083,19 @@ export function SessionPage(): React.ReactElement {
         wheelDirection={wheelDirection}
         adaptiveMode={adaptiveMode}
       />
+
+      {fullscreen && (
+        <div
+          style={{
+            position: "absolute",
+            left: toolboxPosition.x,
+            top: toolboxPosition.y,
+            zIndex: 20,
+          }}
+        >
+          {markerToolbar}
+        </div>
+      )}
 
       {fullscreen && fullscreenHintVisible && (
         <div

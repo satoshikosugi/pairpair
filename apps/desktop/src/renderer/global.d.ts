@@ -1,4 +1,5 @@
 import type { HostOverlayState, InputEvent } from "@pairpair/shared";
+import type { GuestToolboxAction, GuestToolboxState } from "../common/guest-toolbox";
 
 interface ScreenSource {
   id: string;
@@ -34,6 +35,14 @@ declare global {
       showHostOverlay: () => Promise<void>;
       hideHostOverlay: () => Promise<void>;
       updateHostOverlay: (state: HostOverlayState) => Promise<void>;
+      openGuestToolbox: () => Promise<boolean>;
+      closeGuestToolbox: () => Promise<boolean>;
+      updateGuestToolboxState: (state: GuestToolboxState) => Promise<boolean>;
+      sendGuestToolboxAction: (action: GuestToolboxAction) => Promise<boolean>;
+      onGuestToolboxState: (callback: (state: GuestToolboxState) => void) => void;
+      removeGuestToolboxStateListener: () => void;
+      onGuestToolboxAction: (callback: (action: GuestToolboxAction) => void) => void;
+      removeGuestToolboxActionListener: () => void;
     };
   }
 }

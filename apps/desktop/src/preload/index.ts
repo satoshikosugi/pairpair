@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { HostOverlayState, InputEvent } from "@pairpair/shared";
+import type { GuestToolboxAction, GuestToolboxState } from "../common/guest-toolbox";
 
 // Expose only specific, named wrappers - never expose ipcRenderer.send directly
 contextBridge.exposeInMainWorld("pairpair", {
@@ -54,6 +55,24 @@ contextBridge.exposeInMainWorld("pairpair", {
   showHostOverlay: () => ipcRenderer.invoke("overlay:show"),
   hideHostOverlay: () => ipcRenderer.invoke("overlay:hide"),
   updateHostOverlay: (state: HostOverlayState) => ipcRenderer.invoke("overlay:update", state),
+
+  // Guest toolbox window
+  openGuestToolbox: () => ipcRenderer.invoke("toolbox:guest:open"),
+  closeGuestToolbox: () => ipcRenderer.invoke("toolbox:guest:close"),
+  updateGuestToolboxState: (state: GuestToolboxState) => ipcRenderer.invoke("toolbox:guest:updateState", state),
+  sendGuestToolboxAction: (action: GuestToolboxAction) => ipcRenderer.invoke("toolbox:guest:action", action),
+  onGuestToolboxState: (callback: (state: GuestToolboxState) => void) => {
+    ipcRenderer.on("toolbox:guest-state", (_event, state: GuestToolboxState) => callback(state));
+  },
+  removeGuestToolboxStateListener: () => {
+    ipcRenderer.removeAllListeners("toolbox:guest-state");
+  },
+  onGuestToolboxAction: (callback: (action: GuestToolboxAction) => void) => {
+    ipcRenderer.on("toolbox:guest-action", (_event, action: GuestToolboxAction) => callback(action));
+  },
+  removeGuestToolboxActionListener: () => {
+    ipcRenderer.removeAllListeners("toolbox:guest-action");
+  },
 });
 
 declare global {
@@ -82,6 +101,14 @@ declare global {
       showHostOverlay: () => Promise<void>;
       hideHostOverlay: () => Promise<void>;
       updateHostOverlay: (state: HostOverlayState) => Promise<void>;
+      openGuestToolbox: () => Promise<boolean>;
+      closeGuestToolbox: () => Promise<boolean>;
+      updateGuestToolboxState: (state: GuestToolboxState) => Promise<boolean>;
+      sendGuestToolboxAction: (action: GuestToolboxAction) => Promise<boolean>;
+      onGuestToolboxState: (callback: (state: GuestToolboxState) => void) => void;
+      removeGuestToolboxStateListener: () => void;
+      onGuestToolboxAction: (callback: (action: GuestToolboxAction) => void) => void;
+      removeGuestToolboxActionListener: () => void;
     };
   }
 

@@ -126,6 +126,10 @@ export interface SessionRoleSwitchReadyMessage {
   hostToken: string;
 }
 
+export interface SessionRoleSwitchReadyAckMessage {
+  type: "session.roleSwitch.readyAck";
+}
+
 export type ControlMessage =
   | RemoteControlRequestMessage
   | RemoteControlGrantedMessage
@@ -151,4 +155,5 @@ export type ControlMessage =
   | AnnotationClearMessage
   | GuestCursorMessage
   | SessionRoleSwitchRequestMessage
-  | SessionRoleSwitchReadyMessage;
+  | SessionRoleSwitchReadyMessage
+  | SessionRoleSwitchReadyAckMessage;

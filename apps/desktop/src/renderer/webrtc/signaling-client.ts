@@ -118,6 +118,43 @@ export class SignalingClient {
     this.messageHandlers.clear();
   }
 
+  async rebindRole(token: string, role: "host" | "guest"): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("WebSocket is not open");
+    }
+
+    const registeredType = role === "host" ? "host.registered" : "guest.registered";
+    const registerMsg =
+      role === "host"
+        ? { type: "host.register", sessionId: this.sessionId, hostToken: token }
+        : { type: "guest.register", sessionId: this.sessionId, guestToken: token };
+
+    console.info(
+      `[PairPair][Signaling] rebind role=${role} sessionId=${this.sessionId} registerType=${registerMsg.type}`,
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        this.off(registeredType, handleRegistered);
+        this.off("error", handleError);
+      };
+      const handleRegistered = () => {
+        cleanup();
+        this.role = role;
+        this.token = token;
+        resolve();
+      };
+      const handleError = (message: Record<string, unknown>) => {
+        cleanup();
+        reject(new Error(String(message.code ?? "UNKNOWN_ERROR")));
+      };
+
+      this.on(registeredType, handleRegistered);
+      this.on("error", handleError);
+      this.ws?.send(JSON.stringify(registerMsg));
+    });
+  }
+
   send(message: Partial<SignalingMessage> & Record<string, unknown>): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       console.info(

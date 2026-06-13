@@ -49,6 +49,8 @@ const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
 const FULLSCREEN_HINT_DURATION_MS = 5000;
 const TOOLBAR_IDLE_FADE_MS = 5000;
+const ROLE_SWITCH_READY_RETRY_MS = 250;
+const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 
 function getToolboxBounds(
   panelWidth: number,
@@ -163,6 +165,8 @@ export function SessionPage(): React.ReactElement {
   const toolboxElementRef = useRef<HTMLDivElement | null>(null);
   const pendingRoleSwitchSourceRef = useRef<ScreenSource | null>(null);
   const roleSwitchTimeoutRef = useRef<number | null>(null);
+  const pendingRoleSwitchGuestTokenRef = useRef<string | null>(null);
+  const roleSwitchReadyRetryTimerRef = useRef<number | null>(null);
   const isHost = role === "host";
 
   const STATE_LABEL: Record<string, string> = {
@@ -287,30 +291,42 @@ export function SessionPage(): React.ReactElement {
     }
   }, []);
 
+  const clearRoleSwitchReadyRetry = useCallback(() => {
+    if (roleSwitchReadyRetryTimerRef.current !== null) {
+      window.clearInterval(roleSwitchReadyRetryTimerRef.current);
+      roleSwitchReadyRetryTimerRef.current = null;
+    }
+    pendingRoleSwitchGuestTokenRef.current = null;
+  }, []);
+
+  const sendRoleSwitchReady = useCallback((nextHostToken: string) => {
+    dataChannelManager.sendControl({ type: "session.roleSwitch.ready", hostToken: nextHostToken });
+  }, []);
+
+  const startRoleSwitchReadyRetry = useCallback((nextGuestToken: string, nextHostToken: string) => {
+    clearRoleSwitchReadyRetry();
+    pendingRoleSwitchGuestTokenRef.current = nextGuestToken;
+    let attempts = 0;
+    sendRoleSwitchReady(nextHostToken);
+    roleSwitchReadyRetryTimerRef.current = window.setInterval(() => {
+      attempts += 1;
+      if (attempts >= ROLE_SWITCH_READY_MAX_RETRIES) {
+        clearRoleSwitchReadyRetry();
+        setRoleSwitchInProgress(false);
+        useSessionStore.getState().setRoleSwitchInProgress(false);
+        setError("役割切替に失敗しました: ゲスト側の切替確認を受信できませんでした");
+        return;
+      }
+      sendRoleSwitchReady(nextHostToken);
+    }, ROLE_SWITCH_READY_RETRY_MS);
+  }, [clearRoleSwitchReadyRetry, sendRoleSwitchReady, setError]);
+
   const preparePeerReconnection = useCallback(async () => {
     console.info(
       `[PairPair][RoleSwitch] preparePeerReconnection role=${String(useSessionStore.getState().role)} sessionId=${sessionId ?? "<none>"}`,
     );
     clearRoleSwitchTimeout();
-    const prepared = await new Promise<boolean>((resolve) => {
-      const timeoutId = window.setTimeout(() => {
-        signalingClient.off("session.roleSwitch.prepared", handlePrepared);
-        resolve(false);
-      }, 3000);
-
-      const handlePrepared = () => {
-        window.clearTimeout(timeoutId);
-        signalingClient.off("session.roleSwitch.prepared", handlePrepared);
-        resolve(true);
-      };
-
-      signalingClient.on("session.roleSwitch.prepared", handlePrepared);
-      signalingClient.send({ type: "session.roleSwitch.prepare" });
-    });
-    console.info(`[PairPair][RoleSwitch] preparePeerReconnection prepared=${prepared}`);
-    if (!prepared) {
-      throw new Error("roleSwitch.prepare acknowledgement timed out");
-    }
+    clearRoleSwitchReadyRetry();
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();
     activeStrokeRef.current = null;
@@ -319,12 +335,11 @@ export function SessionPage(): React.ReactElement {
     setAnnotations([]);
     setRemoteCursor(null);
     setMarkerEnabled(false);
-    signalingClient.disconnect();
     closePeerConnection();
     if (controlMessageHandlerRef.current) {
       dataChannelManager.onControl(controlMessageHandlerRef.current);
     }
-  }, [clearRoleSwitchTimeout, sessionId]);
+  }, [clearRoleSwitchReadyRetry, clearRoleSwitchTimeout, sessionId]);
 
   const reconnectAsGuestAfterRoleSwitch = useCallback(async (nextGuestToken: string) => {
     if (!sessionId || !signalingUrl || !code) {
@@ -346,7 +361,7 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setGuestToken(nextGuestToken);
 
     await createPeerConnectionAsGuest();
-    signalingClient.connect(signalingUrl, sessionId, nextGuestToken, "guest");
+    await signalingClient.rebindRole(nextGuestToken, "guest");
     signalingClient.on("session.close", (message) => {
       if (useSessionStore.getState().roleSwitchInProgress) return;
       const payload = message.payload as { reason?: string } | undefined;
@@ -411,7 +426,7 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setHostToken(nextHostToken);
     useSessionStore.getState().setGuestToken(guestToken);
 
-    signalingClient.connect(signalingUrl, sessionId, nextHostToken, "host");
+    await signalingClient.rebindRole(nextHostToken, "host");
     signalingClient.on("session.close", (message) => {
       if (useSessionStore.getState().roleSwitchInProgress) return;
       const payload = message.payload as { reason?: string } | undefined;
@@ -495,7 +510,6 @@ export function SessionPage(): React.ReactElement {
     setShowRoleSwitchPicker(false);
     setRoleSwitchInProgress(true);
     useSessionStore.getState().setRoleSwitchInProgress(true);
-    signalingClient.send({ type: "session.roleSwitch.prepare" });
     clearRoleSwitchTimeout();
     roleSwitchTimeoutRef.current = window.setTimeout(() => {
       setRoleSwitchInProgress(false);
@@ -995,14 +1009,22 @@ export function SessionPage(): React.ReactElement {
           setRoleSwitchInProgress(true);
           useSessionStore.getState().setRoleSwitchInProgress(true);
           clearRoleSwitchTimeout();
-          dataChannelManager.sendControl({ type: "session.roleSwitch.ready", hostToken });
+          startRoleSwitchReadyRetry(message.guestToken, hostToken);
+          break;
+        }
+        case "session.roleSwitch.readyAck": {
+          if (!isHost) return;
+          const nextGuestToken = pendingRoleSwitchGuestTokenRef.current;
+          if (!nextGuestToken) return;
+          console.info("[PairPair][RoleSwitch] host received roleSwitch.readyAck");
+          clearRoleSwitchReadyRetry();
           window.setTimeout(() => {
-            void reconnectAsGuestAfterRoleSwitch(message.guestToken).catch((err) => {
+            void reconnectAsGuestAfterRoleSwitch(nextGuestToken).catch((err) => {
               setRoleSwitchInProgress(false);
               useSessionStore.getState().setRoleSwitchInProgress(false);
               setError(`役割切替に失敗しました: ${String(err)}`);
             });
-          }, 150);
+          }, 50);
           break;
         }
         case "session.roleSwitch.ready": {
@@ -1012,13 +1034,14 @@ export function SessionPage(): React.ReactElement {
           console.info("[PairPair][RoleSwitch] guest received roleSwitch.ready");
           clearRoleSwitchTimeout();
           pendingRoleSwitchSourceRef.current = null;
+          dataChannelManager.sendControl({ type: "session.roleSwitch.readyAck" });
           window.setTimeout(() => {
             void reconnectAsHostAfterRoleSwitch(message.hostToken, source).catch((err) => {
               setRoleSwitchInProgress(false);
               useSessionStore.getState().setRoleSwitchInProgress(false);
               setError(`役割切替に失敗しました: ${String(err)}`);
             });
-          }, 150);
+          }, 0);
           break;
         }
       }
@@ -1032,9 +1055,11 @@ export function SessionPage(): React.ReactElement {
       }
     };
   }, [
+    clearRoleSwitchReadyRetry,
     clearRoleSwitchTimeout,
     hostToken,
     isHost,
+    startRoleSwitchReadyRetry,
     reconnectAsGuestAfterRoleSwitch,
     reconnectAsHostAfterRoleSwitch,
     setCursorWithTimeout,

@@ -17,15 +17,15 @@ Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "[1/3] Starting Signaling Server..." -ForegroundColor Green
-Start-Process cmd "/c cd $root\apps\signaling-server && npx pnpm@9 dev > $root\test-results\server-$time.log 2>&1"
+Start-Process cmd "/c cd $root\apps\signaling-server && npx pnpm@11 dev > $root\test-results\server-$time.log 2>&1"
 Start-Sleep -Seconds 3
 
 Write-Host "[2/3] Starting Host App..." -ForegroundColor Green
-Start-Process cmd "/c cd $root\apps\desktop && npx pnpm@9 dev > $root\test-results\host-$time.log 2>&1"
+Start-Process cmd "/c cd $root\apps\desktop && npx pnpm@11 dev > $root\test-results\host-$time.log 2>&1"
 Start-Sleep -Seconds 5
 
 Write-Host "[3/3] Starting Guest App..." -ForegroundColor Green
-Start-Process cmd "/c cd $root\apps\desktop && npx pnpm@9 dev > $root\test-results\guest-$time.log 2>&1"
+Start-Process cmd "/c cd $root\apps\desktop && npx pnpm@11 dev > $root\test-results\guest-$time.log 2>&1"
 Start-Sleep -Seconds 3
 
 Write-Host ""

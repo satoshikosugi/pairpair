@@ -98,6 +98,11 @@ export function RemoteVideoView({
       height: Math.max(1, Math.round(videoSize.height * scale)),
     };
   })();
+  const shouldCenterNative =
+    !fitToViewport &&
+    !!displaySize &&
+    displaySize.width <= viewportSize.width &&
+    displaySize.height <= viewportSize.height;
 
   const getPoint = useCallback((clientX: number, clientY: number): AnnotationPoint | null => {
     if (!videoRef.current) return null;
@@ -288,9 +293,9 @@ export function RemoteVideoView({
       ref={containerRef}
       style={{
         flex: 1,
-        display: fitToViewport ? "flex" : "block",
-        alignItems: fitToViewport ? "center" : undefined,
-        justifyContent: fitToViewport ? "center" : undefined,
+        display: fitToViewport || shouldCenterNative ? "flex" : "block",
+        alignItems: fitToViewport || shouldCenterNative ? "center" : undefined,
+        justifyContent: fitToViewport || shouldCenterNative ? "center" : undefined,
         background: "#000",
         padding: fullscreen ? 0 : 12,
         minWidth: 0,
@@ -301,9 +306,9 @@ export function RemoteVideoView({
       <div
         style={{
           position: "relative",
-          display: fitToViewport ? "inline-flex" : "block",
-          flex: fitToViewport ? "0 0 auto" : undefined,
-          margin: fitToViewport ? "auto" : undefined,
+          display: fitToViewport || shouldCenterNative ? "inline-flex" : "block",
+          flex: fitToViewport || shouldCenterNative ? "0 0 auto" : undefined,
+          margin: fitToViewport || shouldCenterNative ? "auto" : undefined,
           width: displaySize?.width,
           height: displaySize?.height,
         }}

@@ -9,7 +9,7 @@ Electron + WebRTC で構成し、P2P での画面共有とリモートコント�
 - **ゲストが操作可能**：許可を受けてマウス・キーボードでリモート操作
 - **4K 対応**：画質プリセット（720p / 1080p / 1440p / 4K）から選択
 - **低遅延**：WebRTC P2P のみで TURN リレーなし（初期版）
-- **クロスプラットフォーム**：Windows / Mac 対応
+- **クロスプラットフォーム**：デスクトップアプリは Windows / macOS 対応
 
 ## 仕様・設計書
 
@@ -91,6 +91,10 @@ pairpair/
 - ゲスト全画面表示
 - `ESC` 2回による全画面解除
 - 非操作時ゲストカーソルのホスト投影
+- フィット / 等倍 表示切替
+- 等倍表示時の右ドラッグパン
+- 任意あいことばの P2P 認証
+- ヘルプメニューからのホスト / ゲスト操作ガイド
 
 ## 重要な制約
 
@@ -151,18 +155,20 @@ start-local-test.bat
 #### 手動セットアップ
 
 **ターミナル 1: Signaling Server を起動**
+
+signaling-server は macOS ローカル起動をサポート対象外とする。macOS では既存のデプロイ済み signaling server を使う前提。
 ```powershell
-npx pnpm@11 --dir apps/signaling-server dev
+npx pnpm@10.5.0 --dir apps/signaling-server dev
 ```
 
 **ターミナル 2: Host App を起動**
 ```powershell
-npx pnpm@11 --dir apps/desktop dev
+npx pnpm@10.5.0 --dir apps/desktop dev
 ```
 
 **ターミナル 3: Guest App を起動（Host 起動後）**
 ```powershell
-npx pnpm@11 --dir apps/desktop dev
+npx pnpm@10.5.0 --dir apps/desktop dev
 ```
 
 #### テスト手順
@@ -176,6 +182,18 @@ npx pnpm@11 --dir apps/desktop dev
 7. 全画面にする場合は **「全画面」** を押し、戻るときは `ESC` を素早く2回押す
 
 詳細は [RUNBOOK.md](docs/RUNBOOK.md) と [LOCAL_TEST_GUIDE.md](LOCAL_TEST_GUIDE.md) を参照。
+
+### パッケージング
+
+```powershell
+npx pnpm@10.5.0 --dir apps/desktop package:win
+```
+
+```bash
+npx pnpm@10.5.0 --dir apps/desktop package:mac
+```
+
+macOS では `package:mac:x64` と `package:mac:arm64` も使える。いずれも `native-input` のビルド確認後に `electron-vite build` と `electron-builder` を実行する。
 
 ### AI による実装
 

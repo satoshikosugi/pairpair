@@ -4,13 +4,18 @@
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
-    "predev": "node ./scripts/ensure-native-input.cjs",
+    "predev": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs",
     "build": "electron-vite build",
     "dev": "electron-vite dev",
+    "prestart": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs",
     "start": "electron-vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "package": "electron-builder --config electron-builder.yml"
+    "package": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml",
+    "package:win": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --win nsis",
+    "package:mac": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip",
+    "package:mac:x64": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip --x64",
+    "package:mac:arm64": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip --arm64"
   },
   "dependencies": {
     "@cloudflare/opaque-ts": "0.7.5",

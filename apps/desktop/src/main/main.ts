@@ -3,6 +3,7 @@ import path from "path";
 import { setupIpcHandlers } from "./ipc";
 import { getSelectedSourceId } from "./ipc/screen.ipc";
 import log from "electron-log";
+import { setupApplicationMenu } from "./menu";
 
 // Hardware encoding flags (must be set before app.ready)
 app.commandLine.appendSwitch("enable-accelerated-video-encode");
@@ -68,6 +69,7 @@ app.whenReady().then(() => {
 
   // Setup IPC handlers
   setupIpcHandlers();
+  setupApplicationMenu();
 
   mainWindow = createMainWindow();
 

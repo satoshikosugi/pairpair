@@ -10,9 +10,9 @@ export function setupSessionIpc(): void {
     const shortcuts =
       process.platform === "darwin"
         ? {
-            pause: "Command+Option+P",
-            revoke: "Command+Option+Escape",
-            end: "Command+Option+Shift+Q",
+            pause: "Command+Control+P",
+            revoke: "Command+Control+R",
+            end: "Command+Control+Shift+Q",
           }
         : {
             pause: "Ctrl+Alt+P",

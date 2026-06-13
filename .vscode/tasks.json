@@ -4,7 +4,7 @@
     {
       "label": "PairPair Signaling Server",
       "type": "shell",
-      "command": "cd apps/signaling-server && npx pnpm@9 dev",
+      "command": "npx pnpm@10.5.0 --dir apps/signaling-server dev",
       "isBackground": true,
       "group": "build",
       "presentation": {
@@ -18,7 +18,7 @@
     {
       "label": "PairPair Host",
       "type": "shell",
-      "command": "cd apps/desktop && npx pnpm@9 dev",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop dev",
       "isBackground": false,
       "group": "build",
       "presentation": {
@@ -31,7 +31,7 @@
     {
       "label": "PairPair Guest",
       "type": "shell",
-      "command": "cd apps/desktop && npx pnpm@9 dev",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop dev",
       "isBackground": false,
       "group": "build",
       "presentation": {
@@ -44,7 +44,7 @@
     {
       "label": "PairPair Test (Server + Host)",
       "type": "shell",
-      "command": "start cmd /k \"cd /d c:\\Projects\\PairPair\\apps\\signaling-server && npx pnpm@9 dev\" && timeout /t 3 && start cmd /k \"cd /d c:\\Projects\\PairPair\\apps\\desktop && npx pnpm@9 dev\"",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ./start-test.ps1",
       "isBackground": false,
       "group": "build",
       "presentation": {
@@ -57,7 +57,7 @@
     {
       "label": "PairPair Dev",
       "type": "shell",
-      "command": "cd apps/desktop && npx pnpm@9 dev",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop dev",
       "isBackground": false,
       "group": {
         "kind": "build",
@@ -73,7 +73,7 @@
     {
       "label": "PairPair Build",
       "type": "shell",
-      "command": "npx pnpm@9 build",
+      "command": "npx pnpm@10.5.0 build",
       "isBackground": false,
       "group": "build",
       "presentation": {
@@ -86,7 +86,7 @@
     {
       "label": "PairPair Install",
       "type": "shell",
-      "command": "npx pnpm@9 install",
+      "command": "npx pnpm@10.5.0 install",
       "isBackground": false,
       "presentation": {
         "echo": true,
@@ -132,7 +132,7 @@
     {
       "label": "GCP Deploy: Build First",
       "type": "shell",
-      "command": "npx pnpm@9 build && powershell -NoProfile -ExecutionPolicy Bypass -Command \"./gcp-deploy.ps1\"",
+      "command": "npx pnpm@10.5.0 build && powershell -NoProfile -ExecutionPolicy Bypass -Command \"./gcp-deploy.ps1\"",
       "isBackground": false,
       "group": "build",
       "presentation": {
@@ -142,6 +142,32 @@
         "panel": "shared"
       },
       "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "PairPair Package (Windows)",
+      "type": "shell",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop package:win",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "PairPair Package (macOS)",
+      "type": "shell",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop package:mac",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      }
     }
   ],
   "inputs": [

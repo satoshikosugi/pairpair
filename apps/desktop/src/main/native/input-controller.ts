@@ -129,8 +129,9 @@ export function getCaptureAreaFromDisplay(displayId?: string): CaptureArea {
 }
 
 function normalizedToScreen(normalizedX: number, normalizedY: number, area: CaptureArea): { x: number; y: number } {
-  const x = Math.round(area.x + normalizedX * area.width * area.scaleFactor);
-  const y = Math.round(area.y + normalizedY * area.height * area.scaleFactor);
+  const coordinateScale = process.platform === "win32" ? area.scaleFactor : 1;
+  const x = Math.round(area.x + normalizedX * area.width * coordinateScale);
+  const y = Math.round(area.y + normalizedY * area.height * coordinateScale);
   return { x, y };
 }
 
@@ -185,7 +186,7 @@ export function injectInputEvent(event: InputEvent): boolean {
 
   try {
     lastRemoteInputAt = Date.now();
-    if (targetWindowId && event.type !== "mouse.move") {
+    if (process.platform === "win32" && targetWindowId && event.type !== "mouse.move") {
       nativeInput.focusWindow?.(targetWindowId);
     }
     switch (event.type) {

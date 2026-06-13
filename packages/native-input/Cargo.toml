@@ -21,7 +21,7 @@ windows = { version = "0.52", features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-core-graphics = "0.23"
+core-graphics = { version = "0.23", features = ["highsierra"] }
 
 [build-dependencies]
 napi-build = "2"

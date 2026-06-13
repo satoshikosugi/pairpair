@@ -17,6 +17,7 @@
 - 非操作時ゲストカーソルのホスト投影
 - 認証専用 P2P DataChannel 上のコード照合と任意の OPAQUE あいことば認証
 - ゲストのホイール方向切替とホスト開始設定の復元
+- macOS 向けネイティブ入力、最小メニュー、ホスト / ゲスト別ヘルプ
 
 ## apps/desktop
 
@@ -26,6 +27,9 @@
   - Electron 起動、セキュア設定、ハードウェアエンコードフラグ
   - `setDisplayMediaRequestHandler` による画面共有
   - DevTools は既定 OFF。`PAIRPAIR_OPEN_DEVTOOLS=1` の場合のみ自動表示
+- `src/main/menu.ts`
+  - Electron 既定ヘルプを外し、ホスト / ゲスト別ヘルプウィンドウを提供
+  - macOS の `Command` 系ショートカットと衝突しにくい最小メニュー構成
 - `src/main/ipc/*.ts`
   - 画面選択、権限、設定、入力注入、ショートカット、活動監視
   - ホスト透明オーバーレイ更新 IPC を追加
@@ -56,6 +60,7 @@
   - ゲスト: 画面表示、マーカー、全画面、ESC 2回で復帰
 - `src/renderer/components/RemoteVideoView.tsx`
   - 映像表示、入力送信、注釈描画、ホバー位置送信
+  - 等倍表示時の中央寄せと右ドラッグパン
 - `src/renderer/components/MarkerToolbar.tsx`
   - 色、太さ、Undo、全削除、全画面、表示倍率、ホイール方向
 
@@ -100,6 +105,8 @@
   - キー押下/解放
   - テキスト貼り付け型入力
   - Windows共有ウィンドウの前面化
+- `macos_input.rs` で CGEvent ベースのマウス、ホイール、キーボード入力を実装
+- macOS では Retina スケールを二重適用しない座標変換へ補正
 
 ## テスト/検証資産
 
@@ -115,3 +122,5 @@
 - 同一 repo 内コードとしては、接続、共有、入力、品質変更、注釈まで一通り実装済み
 - `npx tsc -p apps/desktop/tsconfig.json --noEmit` は通過
 - ただしトップレベル `npm test` は `pnpm` バイナリが環境に無いと失敗する
+- macOS では desktop app の起動・操作・パッケージング導線を整備済み
+- signaling server の macOS ローカル実行はサポート対象外

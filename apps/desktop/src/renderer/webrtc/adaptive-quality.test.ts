@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AdaptiveQualityController, type PairProActivityState } from "../webrtc/adaptive-quality";
-import { PAIRPRO_DEFAULT_PROFILES } from "@pairpair/shared";
+import { PAIRPRO_DEFAULT_PROFILES, calcBitrateMbps } from "@pairpair/shared";
 
 /**
  * Test Suite: Adaptive Quality Controller
@@ -110,27 +110,27 @@ describe("AdaptiveQualityController", () => {
   describe("Callback Arguments", () => {
     it("should call callback with correct FPS and bitrate for idle", () => {
       const expectedFps = PAIRPRO_DEFAULT_PROFILES.idle.fps;
-      const expectedQuality = PAIRPRO_DEFAULT_PROFILES.idle.quality;
-      
-      // Directly trigger idle state
-      vi.useFakeTimers();
-      controller.notifyActivity("idle");
-      vi.runAllTimers();
-      
+      const expectedBitrate = calcBitrateMbps(
+        PAIRPRO_DEFAULT_PROFILES.idle.quality,
+        1920,
+        1080,
+        expectedFps,
+      );
+
       const call = applyCallback.mock.calls[0];
       expect(call[0]).toBe(expectedFps);
-      expect(call[1]).toBeCloseTo(0.8, 0); // Expected bitrate for idle
-      
-      vi.useRealTimers();
+      expect(call[1]).toBeCloseTo(expectedBitrate, 1);
     });
 
     it("should call callback with correct values for each state", () => {
       const states: PairProActivityState[] = ["idle", "mouse_moving", "scrolling", "typing", "clicking"];
       
       for (const state of states) {
-        applyCallback.mockClear();
-        
-        // Trigger state via event (not direct notify)
+        const localCallback = vi.fn();
+        const localController = new AdaptiveQualityController();
+        localController.enable(PAIRPRO_DEFAULT_PROFILES, localCallback, 1920, 1080);
+        localCallback.mockClear();
+
         const eventMap: Record<PairProActivityState, any> = {
           idle: { type: "test_idle" }, // Special case
           mouse_moving: { type: "mouse.move", x: 0.5, y: 0.5, screenId: "primary", timestamp: Date.now() },
@@ -140,17 +140,16 @@ describe("AdaptiveQualityController", () => {
         };
         
         if (state !== "idle") {
-          controller.onInputEvent(eventMap[state] as any);
+          localController.onInputEvent(eventMap[state] as any);
         } else {
-          // For idle, wait for timeout after transition
-          controller.onInputEvent(eventMap.mouse_moving as any);
           vi.useFakeTimers();
-          vi.runAllTimers();
+          localController.onInputEvent(eventMap.mouse_moving as any);
+          vi.advanceTimersByTime(PAIRPRO_DEFAULT_PROFILES.mouse_moving.idleTimeoutMs + 1);
           vi.useRealTimers();
         }
         
         const expectedProfile = PAIRPRO_DEFAULT_PROFILES[state];
-        const calls = applyCallback.mock.calls;
+        const calls = localCallback.mock.calls;
         
         if (calls.length > 0) {
           const call = calls[calls.length - 1]; // Get last call
@@ -172,9 +171,17 @@ describe("AdaptiveQualityController", () => {
       // Verify callback was called
       expect(applyCallback).toHaveBeenCalled();
       const [fps, bitrateMbps] = applyCallback.mock.calls[applyCallback.mock.calls.length - 1];
-      
-      expect(fps).toBe(15); // mouse_moving fps
-      expect(bitrateMbps).toBeCloseTo(6.6, 0); // Updated expected value
+
+      expect(fps).toBe(PAIRPRO_DEFAULT_PROFILES.mouse_moving.fps);
+      expect(bitrateMbps).toBeCloseTo(
+        calcBitrateMbps(
+          PAIRPRO_DEFAULT_PROFILES.mouse_moving.quality,
+          1920,
+          1080,
+          PAIRPRO_DEFAULT_PROFILES.mouse_moving.fps,
+        ),
+        1,
+      );
     });
   });
 
@@ -237,30 +244,22 @@ describe("AdaptiveQualityController", () => {
       const states: PairProActivityState[] = ["idle", "mouse_moving", "scrolling", "typing", "clicking"];
       
       for (const state of states) {
-        applyCallback.mockClear();
-        
-        // For idle, need to transition first then timeout
+        const localCallback = vi.fn();
+        const localController = new AdaptiveQualityController();
+        localController.enable(PAIRPRO_DEFAULT_PROFILES, localCallback, 1920, 1080);
+        localCallback.mockClear();
+
         if (state === "idle") {
-          controller.onInputEvent({
-            type: "mouse.move",
-            x: 0.5,
-            y: 0.5,
-            screenId: "primary",
-            timestamp: Date.now(),
-          });
-          
           vi.useFakeTimers();
-          vi.runAllTimers();
+          localController.notifyActivity("mouse_moving");
+          vi.advanceTimersByTime(PAIRPRO_DEFAULT_PROFILES.mouse_moving.idleTimeoutMs + 1);
           vi.useRealTimers();
         } else {
-          controller.notifyActivity(state);
+          localController.notifyActivity(state);
         }
-        
-        expect(controller.state).toBe(state);
-        // Check if callback was called (at least once for the state)
-        if (state !== "idle") {
-          expect(applyCallback).toHaveBeenCalled();
-        }
+
+        expect(localController.state).toBe(state);
+        expect(localCallback).toHaveBeenCalled();
       }
     });
 

@@ -8,8 +8,9 @@
 - npm
 - `pnpm` を使えること
   - 推奨: `corepack enable`
-  - 代替: `npx pnpm@11`
+  - 代替: `npx pnpm@10.5.0`
 - Windows または macOS
+- macOS では PairPair Desktop のみをサポート対象とし、signaling server のローカル起動は対象外
 - デスクトップアプリの画面共有権限
 
 ## 実行依存関係
@@ -39,17 +40,19 @@
 
 ```powershell
 corepack enable
-npx pnpm@11 install
+npx pnpm@10.5.0 install
 ```
 
-`pnpm` が PATH に無いままでも、以後のコマンドは `npx pnpm@11` で代用できる。
+`pnpm` が PATH に無いままでも、以後のコマンドは `npx pnpm@10.5.0` で代用できる。
 
 ## ローカル起動
 
 ### 1. signaling server
 
+Windows または Linux で起動する。
+
 ```powershell
-npx pnpm@11 --dir apps/signaling-server dev
+npx pnpm@10.5.0 --dir apps/signaling-server dev
 ```
 
 デフォルト:
@@ -63,16 +66,18 @@ npx pnpm@11 --dir apps/signaling-server dev
 ホスト用:
 
 ```powershell
-npx pnpm@11 --dir apps/desktop dev
+npx pnpm@10.5.0 --dir apps/desktop dev
 ```
 
 ゲスト用:
 
 ```powershell
-npx pnpm@11 --dir apps/desktop dev
+npx pnpm@10.5.0 --dir apps/desktop dev
 ```
 
 同一 PC で 2 つ起動してもよい。
+
+macOS ではホスト・ゲストともこの desktop app を実行し、signaling server には既存の配備先を使う。
 
 ## 接続手順
 
@@ -93,8 +98,45 @@ npx pnpm@11 --dir apps/desktop dev
 - `Undo` と `全削除`
 - `全画面` でヘッダなし表示
 - 全画面解除は `ESC` を素早く 2 回
+- `フィット` と `等倍` を切替可能
+- `等倍` で表示領域より映像が大きい場合は右ドラッグでパン
 - `ホイール: Windows / Mac` でスクロール方向を切替。設定は終了後も保持
 - ホストの前回共有ソース、画質モード、解像度は次回開始時に復元
+- メニューバーの `ヘルプ` からホスト / ゲスト別の詳細ガイドを開ける
+
+## macOS の注意
+
+- 初回起動時に `画面収録` と `アクセシビリティ` の許可が必要
+- リモート入力座標は macOS では Retina 倍率を二重適用しないよう補正済み
+- ローカルのメニューショートカットがリモートの `Command` 系操作を奪わないよう、アプリメニューは最小構成
+
+## パッケージング
+
+Windows:
+
+```powershell
+npx pnpm@10.5.0 --dir apps/desktop package:win
+```
+
+macOS:
+
+```bash
+npx pnpm@10.5.0 --dir apps/desktop package:mac
+```
+
+Apple Silicon 専用:
+
+```bash
+npx pnpm@10.5.0 --dir apps/desktop package:mac:arm64
+```
+
+Intel Mac 専用:
+
+```bash
+npx pnpm@10.5.0 --dir apps/desktop package:mac:x64
+```
+
+VS Code では `PairPair Package (Windows)` と `PairPair Package (macOS)` タスクを利用できる。
 
 ## DevTools
 
@@ -102,7 +144,7 @@ DevTools は既定で自動表示しない。開発起動時に自動表示す�
 
 ```powershell
 $env:PAIRPAIR_OPEN_DEVTOOLS="1"
-npx pnpm@11 --dir apps/desktop dev
+npx pnpm@10.5.0 --dir apps/desktop dev
 ```
 
 ## 検証コマンド
@@ -127,7 +169,7 @@ npm test
 ## よくある詰まりどころ
 
 - `pnpm` が見つからない
-  - `corepack enable` または `npx pnpm@11 ...` を使う
+  - `corepack enable` または `npx pnpm@10.5.0 ...` を使う
 - 共有画面が出ない
   - OS 権限を確認する
 - 接続はできるが操作が効かない

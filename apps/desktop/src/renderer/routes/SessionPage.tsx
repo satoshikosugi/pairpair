@@ -168,6 +168,9 @@ export function SessionPage(): React.ReactElement {
   const pendingRoleSwitchGuestTokenRef = useRef<string | null>(null);
   const roleSwitchReadyRetryTimerRef = useRef<number | null>(null);
   const isHost = role === "host";
+  const isHostRef = useRef(isHost);
+  const roleSwitchInProgressRef = useRef(roleSwitchInProgress);
+  const fullscreenRef = useRef(fullscreen);
 
   const STATE_LABEL: Record<string, string> = {
     idle: "アイドル",
@@ -327,6 +330,8 @@ export function SessionPage(): React.ReactElement {
     );
     clearRoleSwitchTimeout();
     clearRoleSwitchReadyRetry();
+    setShowRoleSwitchPicker(false);
+    setFullscreen(false);
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();
     activeStrokeRef.current = null;
@@ -614,8 +619,14 @@ export function SessionPage(): React.ReactElement {
   }, [controlState]);
 
   const toggleGuestFullscreen = useCallback(() => {
-    void window.pairpair.setGuestFullscreen(!fullscreen).catch(console.error);
-  }, [fullscreen]);
+    const previousFullscreen = fullscreenRef.current;
+    const nextFullscreen = !previousFullscreen;
+    setFullscreen(nextFullscreen);
+    void window.pairpair.setGuestFullscreen(nextFullscreen).catch((err) => {
+      setFullscreen(previousFullscreen);
+      console.error(err);
+    });
+  }, []);
 
   const restoreToolboxIntoView = useCallback(() => {
     setToolboxMinimized(false);
@@ -713,8 +724,14 @@ export function SessionPage(): React.ReactElement {
   }, [isHost, refreshToolboxActivity]);
 
   useEffect(() => {
+    isHostRef.current = isHost;
+    roleSwitchInProgressRef.current = roleSwitchInProgress;
+    fullscreenRef.current = fullscreen;
+  }, [fullscreen, isHost, roleSwitchInProgress]);
+
+  useEffect(() => {
     const handlePromoteGuestToHost = () => {
-      if (isHost || roleSwitchInProgress) return;
+      if (isHostRef.current || roleSwitchInProgressRef.current) return;
       setShowRoleSwitchPicker(true);
     };
 
@@ -722,7 +739,7 @@ export function SessionPage(): React.ReactElement {
     return () => {
       window.pairpair.removePromoteGuestToHostListener();
     };
-  }, [isHost, roleSwitchInProgress]);
+  }, []);
 
   useEffect(() => {
     if (isHost || !fullscreen) return;

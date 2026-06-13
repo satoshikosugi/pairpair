@@ -15,6 +15,7 @@ export class SignalingClient {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
+  private socketGeneration = 0;
 
   connect(wsUrl: string, sessionId: string, token: string, role: "host" | "guest"): void {
     this.messageHandlers.clear();
@@ -35,8 +36,12 @@ export class SignalingClient {
   private doConnect(): void {
     const ws = new WebSocket(this.wsUrl);
     this.ws = ws;
+    const generation = ++this.socketGeneration;
 
     ws.onopen = () => {
+      if (this.ws !== ws || generation !== this.socketGeneration) {
+        return;
+      }
       this.reconnectAttempts = 0;
       const registerMsg =
         this.role === "host"
@@ -51,6 +56,9 @@ export class SignalingClient {
     };
 
     ws.onmessage = (event) => {
+      if (this.ws !== ws || generation !== this.socketGeneration) {
+        return;
+      }
       try {
         const message = JSON.parse(event.data as string) as Record<string, unknown>;
         const type = message.type as string;
@@ -58,6 +66,7 @@ export class SignalingClient {
           role: this.role,
           sessionId: this.sessionId,
           type,
+          code: typeof message.code === "string" ? message.code : undefined,
         });
         const handlers = this.messageHandlers.get(type) ?? [];
         const wildcardHandlers = this.messageHandlers.get("*") ?? [];
@@ -68,13 +77,18 @@ export class SignalingClient {
     };
 
     ws.onclose = (event) => {
+      const isCurrentSocket = this.ws === ws && generation === this.socketGeneration;
       console.info("[PairPair][Signaling] websocket close", {
         role: this.role,
         sessionId: this.sessionId,
         code: event.code,
         reason: event.reason,
         intentional: this.intentionalClose,
+        isCurrentSocket,
       });
+      if (!isCurrentSocket) {
+        return;
+      }
       this.ws = null;
       if (!this.intentionalClose) {
         this.scheduleReconnect();
@@ -82,6 +96,9 @@ export class SignalingClient {
     };
 
     ws.onerror = (event) => {
+      if (this.ws !== ws || generation !== this.socketGeneration) {
+        return;
+      }
       console.error("WebSocket error:", event);
     };
   }
@@ -109,8 +126,9 @@ export class SignalingClient {
       this.reconnectTimer = null;
     }
     if (this.ws) {
-      this.ws.close();
+      const currentWs = this.ws;
       this.ws = null;
+      currentWs.close();
     }
     this.messageHandlers.clear();
   }

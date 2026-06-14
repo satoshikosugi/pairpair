@@ -11,6 +11,14 @@ mod macos_input;
 #[cfg(target_os = "macos")]
 mod macos_ime;
 
+#[napi(object)]
+pub struct WindowBounds {
+  pub x: i32,
+  pub y: i32,
+  pub width: i32,
+  pub height: i32,
+}
+
 /// Move mouse cursor to absolute screen position
 #[napi]
 pub fn move_mouse(x: i32, y: i32) {
@@ -87,6 +95,34 @@ pub fn focus_window(window_id: String) {
   macos_input::focus_window(&window_id);
   #[cfg(not(any(target_os = "windows", target_os = "macos")))]
   let _ = window_id;
+}
+
+#[napi]
+pub fn get_cursor_kind() -> String {
+  #[cfg(target_os = "windows")]
+  {
+    return windows_input::get_cursor_kind();
+  }
+  #[cfg(not(target_os = "windows"))]
+  "default".to_string()
+}
+
+#[napi]
+pub fn get_window_bounds(window_id: String) -> Option<WindowBounds> {
+  #[cfg(target_os = "windows")]
+  {
+    return windows_input::get_window_bounds(&window_id).map(|bounds| WindowBounds {
+      x: bounds.0,
+      y: bounds.1,
+      width: bounds.2,
+      height: bounds.3,
+    });
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    let _ = window_id;
+    None
+  }
 }
 
 /// macOS TIS API を使って現在の IME 入力ソースを取得する。

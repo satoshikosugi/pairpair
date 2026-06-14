@@ -18,7 +18,28 @@ export interface GuestCursorIndicator {
   timestamp: number;
 }
 
-export type HostCursorIndicator = GuestCursorIndicator;
+export type HostCursorKind =
+  | "default"
+  | "text"
+  | "crosshair"
+  | "pointer"
+  | "move"
+  | "wait"
+  | "progress"
+  | "help"
+  | "not-allowed"
+  | "ew-resize"
+  | "ns-resize"
+  | "nwse-resize"
+  | "nesw-resize";
+
+export interface HostCursorIndicator {
+  x: number;
+  y: number;
+  visible: boolean;
+  timestamp: number;
+  kind: HostCursorKind;
+}
 
 export interface SpotlightIndicator {
   x: number;

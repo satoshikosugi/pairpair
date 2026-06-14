@@ -1243,7 +1243,7 @@ export function SessionPage(): React.ReactElement {
 
     let cancelled = false;
     let inFlight = false;
-    const hiddenCursor: HostCursorIndicator = { x: 0, y: 0, visible: false, timestamp: Date.now() };
+    const hiddenCursor: HostCursorIndicator = { x: 0, y: 0, visible: false, timestamp: Date.now(), kind: "default" };
 
     const tick = async () => {
       if (cancelled || inFlight) return;
@@ -1256,6 +1256,7 @@ export function SessionPage(): React.ReactElement {
         const prevVisible = prev?.visible ?? false;
         const changed =
           prevVisible !== cursor.visible ||
+          prev?.kind !== cursor.kind ||
           (cursor.visible && (
             !prev ||
             Math.abs(prev.x - cursor.x) > 0.001 ||

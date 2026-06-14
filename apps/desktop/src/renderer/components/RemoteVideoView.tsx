@@ -20,8 +20,155 @@ import { bindRemoteVideoElement } from "../webrtc/rtc-client";
 const MOUSE_MOVE_INTERVAL_MS = 16;
 const REMOTE_CURSOR_SIZE_PX = 46;
 const REMOTE_CURSOR_LINE_PX = 4;
-const HOST_CURSOR_SIZE_PX = 72;
-const HOST_CURSOR_LINE_PX = 6;
+
+interface HostCursorVisualSpec {
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+  node: React.ReactNode;
+}
+
+function renderCursorArrow(extra?: React.ReactNode): HostCursorVisualSpec {
+  return {
+    width: 56,
+    height: 56,
+    offsetX: 6,
+    offsetY: 4,
+    node: (
+      <svg viewBox="0 0 56 56" width="56" height="56">
+        <path d="M9 6 L9 42 L18 33 L25 49 L32 46 L25 30 L38 30 Z" fill="#ffffff" stroke="#0b1220" strokeWidth="4" strokeLinejoin="round" />
+        {extra}
+      </svg>
+    ),
+  };
+}
+
+function renderResizeCursor(kind: HostCursorIndicator["kind"]): HostCursorVisualSpec {
+  const rotation = kind === "ew-resize" ? 0 : kind === "ns-resize" ? 90 : kind === "nwse-resize" ? 45 : -45;
+  return {
+    width: 64,
+    height: 64,
+    offsetX: 32,
+    offsetY: 32,
+    node: (
+      <svg viewBox="0 0 64 64" width="64" height="64">
+        <g transform={`rotate(${rotation} 32 32)`}>
+          <line x1="16" y1="32" x2="48" y2="32" stroke="#0b1220" strokeWidth="10" strokeLinecap="round" />
+          <line x1="16" y1="32" x2="48" y2="32" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
+          <path d="M16 32 L24 24 M16 32 L24 40 M48 32 L40 24 M48 32 L40 40" stroke="#0b1220" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M16 32 L24 24 M16 32 L24 40 M48 32 L40 24 M48 32 L40 40" stroke="#6fd3ff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      </svg>
+    ),
+  };
+}
+
+function getHostCursorVisual(kind: HostCursorIndicator["kind"]): HostCursorVisualSpec {
+  switch (kind) {
+    case "text":
+      return {
+        width: 34,
+        height: 58,
+        offsetX: 17,
+        offsetY: 29,
+        node: (
+          <svg viewBox="0 0 34 58" width="34" height="58">
+            <path d="M7 7 H27 M7 51 H27 M17 7 V51" stroke="#0b1220" strokeWidth="10" strokeLinecap="round" />
+            <path d="M7 7 H27 M7 51 H27 M17 7 V51" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
+          </svg>
+        ),
+      };
+    case "crosshair":
+      return {
+        width: 56,
+        height: 56,
+        offsetX: 28,
+        offsetY: 28,
+        node: (
+          <svg viewBox="0 0 56 56" width="56" height="56">
+            <circle cx="28" cy="28" r="10" fill="none" stroke="#0b1220" strokeWidth="8" />
+            <circle cx="28" cy="28" r="10" fill="none" stroke="#ffffff" strokeWidth="4" />
+            <path d="M28 6 V16 M28 40 V50 M6 28 H16 M40 28 H50" stroke="#0b1220" strokeWidth="8" strokeLinecap="round" />
+            <path d="M28 6 V16 M28 40 V50 M6 28 H16 M40 28 H50" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+          </svg>
+        ),
+      };
+    case "pointer":
+      return {
+        width: 58,
+        height: 58,
+        offsetX: 14,
+        offsetY: 6,
+        node: (
+          <svg viewBox="0 0 58 58" width="58" height="58">
+            <path d="M13 7 L13 34 L20 27 L23 49 H31 L30 31 H37 L37 18 L30 18 L30 10 H23 L23 22 L19 18 L19 7 Z" fill="#ffffff" stroke="#0b1220" strokeWidth="4" strokeLinejoin="round" />
+          </svg>
+        ),
+      };
+    case "move":
+      return {
+        width: 64,
+        height: 64,
+        offsetX: 32,
+        offsetY: 32,
+        node: (
+          <svg viewBox="0 0 64 64" width="64" height="64">
+            <path d="M32 8 L38 16 H34 V26 H44 V22 L52 28 L44 34 V30 H34 V40 H38 L32 48 L26 40 H30 V30 H20 V34 L12 28 L20 22 V26 H30 V16 H26 Z" fill="#6fd3ff" stroke="#0b1220" strokeWidth="4" strokeLinejoin="round" />
+          </svg>
+        ),
+      };
+    case "wait":
+      return {
+        width: 54,
+        height: 54,
+        offsetX: 27,
+        offsetY: 27,
+        node: (
+          <svg viewBox="0 0 54 54" width="54" height="54">
+            <circle cx="27" cy="27" r="18" fill="none" stroke="#0b1220" strokeWidth="8" />
+            <circle cx="27" cy="27" r="18" fill="none" stroke="#ffffff" strokeWidth="4" strokeDasharray="70 38" strokeLinecap="round" />
+            <path d="M27 17 V27 L34 34" stroke="#6fd3ff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+      };
+    case "progress":
+      return renderCursorArrow(
+        <>
+          <circle cx="40" cy="40" r="10" fill="#0b1220" />
+          <circle cx="40" cy="40" r="8" fill="none" stroke="#6fd3ff" strokeWidth="3" strokeDasharray="22 12" strokeLinecap="round" />
+        </>,
+      );
+    case "help":
+      return renderCursorArrow(
+        <>
+          <circle cx="40" cy="41" r="10" fill="#0b1220" />
+          <text x="40" y="45" textAnchor="middle" fontSize="14" fontWeight="700" fill="#6fd3ff" fontFamily="sans-serif">?</text>
+        </>,
+      );
+    case "not-allowed":
+      return {
+        width: 56,
+        height: 56,
+        offsetX: 28,
+        offsetY: 28,
+        node: (
+          <svg viewBox="0 0 56 56" width="56" height="56">
+            <circle cx="28" cy="28" r="18" fill="#ffffff" stroke="#0b1220" strokeWidth="4" />
+            <path d="M17 39 L39 17" stroke="#ff6b6b" strokeWidth="8" strokeLinecap="round" />
+          </svg>
+        ),
+      };
+    case "ew-resize":
+    case "ns-resize":
+    case "nwse-resize":
+    case "nesw-resize":
+      return renderResizeCursor(kind);
+    case "default":
+    default:
+      return renderCursorArrow();
+  }
+}
 
 interface RemoteVideoViewProps {
   stream?: MediaStream;
@@ -345,6 +492,8 @@ export function RemoteVideoView({
     });
   }, [displaySize?.height, displaySize?.width, fitToViewport, spotlight, videoSize.height, videoSize.width]);
 
+  const hostCursorVisual = hostCursor ? getHostCursorVisual(hostCursor.kind) : null;
+
   return (
     <div
       ref={containerRef}
@@ -474,49 +623,14 @@ export function RemoteVideoView({
               position: "absolute",
               left: `${hostCursor.x * 100}%`,
               top: `${hostCursor.y * 100}%`,
-              width: HOST_CURSOR_SIZE_PX,
-              height: HOST_CURSOR_SIZE_PX,
-              transform: "translate(-50%, -50%)",
+              width: hostCursorVisual?.width,
+              height: hostCursorVisual?.height,
+              transform: `translate(-${hostCursorVisual?.offsetX ?? 0}px, -${hostCursorVisual?.offsetY ?? 0}px)`,
               pointerEvents: "none",
-              opacity: 0.95,
+              filter: "drop-shadow(0 6px 10px rgba(0,0,0,0.26))",
             }}
           >
-            <div
-              style={{
-                position: "absolute",
-                left: "50%",
-                top: 0,
-                width: HOST_CURSOR_LINE_PX,
-                height: "100%",
-                transform: "translateX(-50%)",
-                background: "#fff",
-                boxShadow: "0 0 0 2px rgba(0,0,0,0.72)",
-                borderRadius: 999,
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: 0,
-                width: "100%",
-                height: HOST_CURSOR_LINE_PX,
-                transform: "translateY(-50%)",
-                background: "#fff",
-                boxShadow: "0 0 0 2px rgba(0,0,0,0.72)",
-                borderRadius: 999,
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                inset: 14,
-                borderRadius: "50%",
-                border: "4px solid rgba(80, 194, 255, 0.98)",
-                boxShadow: "0 0 28px rgba(80, 194, 255, 0.82)",
-                background: "rgba(80, 194, 255, 0.12)",
-              }}
-            />
+            {hostCursorVisual?.node}
           </div>
         )}
         {spotlight?.visible && (

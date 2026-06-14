@@ -3,9 +3,22 @@ import type { HostCursorIndicator } from "@pairpair/shared";
 import log from "electron-log";
 import { setCaptureArea, setTargetWindowId } from "../native/input-controller";
 import { setHostOverlayBounds } from "../overlay/host-overlay";
+import { getCurrentCursorKind } from "../native/input-controller";
+import { getWindowBounds } from "../native/input-controller";
 
 let _selectedSourceId: string | null = null;
 let _selectedDisplayBounds: Rectangle | null = null;
+
+function getSelectedSourceBounds(): Rectangle | null {
+  if (_selectedSourceId?.startsWith("window:")) {
+    const windowId = _selectedSourceId.split(":")[1] ?? "";
+    const bounds = getWindowBounds(windowId);
+    if (bounds && bounds.width > 0 && bounds.height > 0) {
+      return bounds;
+    }
+  }
+  return _selectedDisplayBounds;
+}
 
 export function getSelectedSourceId(): string | null {
   return _selectedSourceId;
@@ -59,10 +72,10 @@ export function setupScreenIpc(): void {
   });
 
   ipcMain.handle("screen:getSharedCursor", (): HostCursorIndicator => {
-    const bounds = _selectedDisplayBounds;
+    const bounds = getSelectedSourceBounds();
     const timestamp = Date.now();
     if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
-      return { x: 0, y: 0, visible: false, timestamp };
+      return { x: 0, y: 0, visible: false, timestamp, kind: "default" };
     }
 
     const point = screen.getCursorScreenPoint();
@@ -73,7 +86,7 @@ export function setupScreenIpc(): void {
       point.y <= bounds.y + bounds.height;
 
     if (!withinBounds) {
-      return { x: 0, y: 0, visible: false, timestamp };
+      return { x: 0, y: 0, visible: false, timestamp, kind: "default" };
     }
 
     return {
@@ -81,6 +94,7 @@ export function setupScreenIpc(): void {
       y: (point.y - bounds.y) / bounds.height,
       visible: true,
       timestamp,
+      kind: getCurrentCursorKind() as HostCursorIndicator["kind"],
     };
   });
 }

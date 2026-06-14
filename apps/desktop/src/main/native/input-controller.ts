@@ -78,6 +78,8 @@ interface NativeInputModule {
   keyUp(vkCode: number): void;
   typeText(text: string): void;
   focusWindow?(windowId: string): void;
+  getCursorKind?(): string;
+  getWindowBounds?(windowId: string): { x: number; y: number; width: number; height: number } | null;
   /** macOS のみ: TIS API で現在の IME 入力ソースを取得する */
   getCurrentImeMode?(): string;
   /** Windows のみ: IMM32 API で IME の ON/OFF を直接制御する */
@@ -195,6 +197,16 @@ export function getCurrentImeMode(): string | null {
   const nativeInput = getNativeInputModule();
   if (!nativeInput) return null;
   return nativeInput.getCurrentImeMode?.() ?? null;
+}
+
+export function getCurrentCursorKind(): string {
+  const nativeInput = getNativeInputModule();
+  return nativeInput?.getCursorKind?.() ?? "default";
+}
+
+export function getWindowBounds(windowId: string): { x: number; y: number; width: number; height: number } | null {
+  const nativeInput = getNativeInputModule();
+  return nativeInput?.getWindowBounds?.(windowId) ?? null;
 }
 
 export function getCaptureAreaFromDisplay(displayId?: string): CaptureArea {

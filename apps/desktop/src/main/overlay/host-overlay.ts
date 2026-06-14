@@ -191,8 +191,9 @@ export async function showHostOverlay(): Promise<void> {
 
 export function hideHostOverlay(): void {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.hide();
+    overlayWindow.close();
   }
+  overlayWindow = null;
 }
 
 export async function updateHostOverlay(state: HostOverlayState): Promise<void> {

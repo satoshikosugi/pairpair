@@ -49,24 +49,42 @@ function getNativeBinaryName(): string | null {
   return null;
 }
 
+function getNativeBinaryOverrides(binaryName: string): string[] {
+  if (!binaryName.endsWith(".node")) return [];
+  return [
+    binaryName.replace(/\.node$/, ".local.node"),
+  ];
+}
+
 function getNativeModuleCandidates(): string[] {
   const binaryName = getNativeBinaryName();
   if (!binaryName) return [];
+  const overrideNames = getNativeBinaryOverrides(binaryName);
 
   const candidates = new Set<string>();
 
   try {
     const packageEntry = require.resolve("@pairpair/native-input");
     const packageRoot = path.dirname(path.dirname(packageEntry));
+    for (const overrideName of overrideNames) {
+      candidates.add(path.join(packageRoot, overrideName));
+    }
     candidates.add(path.join(packageRoot, binaryName));
   } catch (err) {
     nativeInputLoadError = `Failed to resolve @pairpair/native-input: ${String(err)}`;
   }
 
+  for (const overrideName of overrideNames) {
+    candidates.add(path.join(process.cwd(), "node_modules", "@pairpair", "native-input", overrideName));
+    candidates.add(path.join(process.cwd(), "..", "..", "packages", "native-input", overrideName));
+  }
   candidates.add(path.join(process.cwd(), "node_modules", "@pairpair", "native-input", binaryName));
   candidates.add(path.join(process.cwd(), "..", "..", "packages", "native-input", binaryName));
 
   if (process.resourcesPath) {
+    for (const overrideName of overrideNames) {
+      candidates.add(path.join(process.resourcesPath, "native-input", overrideName));
+    }
     candidates.add(path.join(process.resourcesPath, "native-input", binaryName));
   }
 

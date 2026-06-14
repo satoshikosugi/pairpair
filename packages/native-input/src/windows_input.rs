@@ -190,7 +190,7 @@ pub fn set_ime_mode_win(open: bool) {
     let himc = ImmGetContext(hwnd);
     // himc が null でなければ（IME が使えるウィンドウであれば）切り替える
     if !himc.is_invalid() {
-      let _ = ImmSetOpenStatus(himc, open.into());
+      let _ = ImmSetOpenStatus(himc, open);
       let _ = ImmReleaseContext(hwnd, himc);
     }
   }

@@ -94,6 +94,10 @@ function getToolboxBounds(
   };
 }
 
+/**
+ * 明示的な "japanese"/"latin" のみ返す。トグルキー（半角/全角など）は null を返す。
+ * トグルキーはコンポーネント内でローカル状態を参照して処理する。
+ */
 function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
   // code ベースの検出（モダンな Chromium/Electron、macOS JIS キーボード）
   if (event.code === "Lang1") return { type: "ime.mode", mode: "japanese" };
@@ -105,18 +109,12 @@ function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
   // "KanaMode" = かなキー（常に日本語モード有効化）
   if (event.key === "KanaMode") return { type: "ime.mode", mode: "japanese" };
 
-  const toggleKeys = new Set([
-    "KanjiMode",
-    "Hankaku",
-    "Zenkaku",
-    "ZenkakuHankaku",
-  ]);
-  if (toggleKeys.has(event.key)) {
-    return { type: "ime.mode", mode: "toggle" };
-  }
-
+  // トグルキー（半角/全角など）は null を返す。呼び出し元でローカル状態を使って処理する。
   return null;
 }
+
+/** 半角/全角など、IME を toggle する DOM key 名 */
+const IME_TOGGLE_KEY_NAMES = new Set(["KanjiMode", "Hankaku", "Zenkaku", "ZenkakuHankaku"]);
 
 export function SessionPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
@@ -185,6 +183,9 @@ export function SessionPage(): React.ReactElement {
   const toolboxElementRef = useRef<HTMLDivElement | null>(null);
   const pendingRoleSwitchSourceRef = useRef<ScreenSource | null>(null);
   const roleSwitchTimeoutRef = useRef<number | null>(null);
+  // ゲストが IME 切り替えトグルキーを押した際のローカル状態追跡
+  // "toggle" を送らず常に明示的な "japanese"/"latin" を送るために使用
+  const guestImeModeRef = useRef<"japanese" | "latin">("latin");
   const pendingRoleSwitchGuestTokenRef = useRef<string | null>(null);
   const roleSwitchReadyRetryTimerRef = useRef<number | null>(null);
   const roleSwitchCompletionTimerRef = useRef<number | null>(null);
@@ -1437,13 +1438,29 @@ export function SessionPage(): React.ReactElement {
 
       if (controlState !== "controlAllowed" || !sessionPermissions.keyboard) return;
       e.preventDefault();
+      // 明示モード（かな/英数キー）の IME イベント
       const imeEvent = getImeModeEvent(e);
       if (imeEvent) {
         if (!e.repeat) {
+          guestImeModeRef.current = imeEvent.mode;
           if (adaptiveMode) {
             adaptiveQualityController.onInputEvent(imeEvent);
           }
           dataChannelManager.sendInput(imeEvent);
+        }
+        return;
+      }
+      // トグルキー（半角/全角など）: ローカル状態を反転して明示モードを送る
+      // "toggle" は絶対に送らない（ホスト側で意図しないCmd+Space等が発生するのを防ぐ）
+      if (IME_TOGGLE_KEY_NAMES.has(e.key) || IME_TOGGLE_KEY_NAMES.has(e.code)) {
+        if (!e.repeat) {
+          const nextMode = guestImeModeRef.current === "latin" ? "japanese" : "latin";
+          guestImeModeRef.current = nextMode;
+          const toggledEvent: ImeModeEvent = { type: "ime.mode", mode: nextMode };
+          if (adaptiveMode) {
+            adaptiveQualityController.onInputEvent(toggledEvent);
+          }
+          dataChannelManager.sendInput(toggledEvent);
         }
         return;
       }
@@ -1479,6 +1496,7 @@ export function SessionPage(): React.ReactElement {
       if (controlState !== "controlAllowed" || !sessionPermissions.keyboard) return;
       e.preventDefault();
       if (getImeModeEvent(e)) return;
+      if (IME_TOGGLE_KEY_NAMES.has(e.key) || IME_TOGGLE_KEY_NAMES.has(e.code)) return;
       const event: KeyboardUpEvent = {
         type: "keyboard.up",
         code: e.code,

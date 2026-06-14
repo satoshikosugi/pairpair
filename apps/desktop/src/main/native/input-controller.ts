@@ -178,10 +178,12 @@ function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" 
       log.info("[IME] macOS: injecting Lang2 (Latin)");
       tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Lang2);
     } else {
-      log.info("[IME] macOS: injecting Cmd+Space (toggle)");
-      nativeInput.keyDown(DOM_KEY_TO_MAC_KEYCODE.MetaLeft);
+      // Ctrl+Space = macOS の入力ソース切り替えショートカット
+      // Cmd+Space は Spotlight が起動してしまうため絶対に使用しない
+      log.info("[IME] macOS: injecting Ctrl+Space (toggle)");
+      nativeInput.keyDown(DOM_KEY_TO_MAC_KEYCODE.ControlLeft);
       tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Space);
-      nativeInput.keyUp(DOM_KEY_TO_MAC_KEYCODE.MetaLeft);
+      nativeInput.keyUp(DOM_KEY_TO_MAC_KEYCODE.ControlLeft);
     }
     return;
   }

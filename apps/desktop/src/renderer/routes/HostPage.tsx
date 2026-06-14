@@ -53,7 +53,7 @@ const inlineDangerButtonStyle: React.CSSProperties = {
 };
 
 export function HostPage(): React.ReactElement {
-  const { navigate, setError } = useAppStore();
+  const { navigate, setError, pendingHostRestart, clearPendingHostRestart } = useAppStore();
   const {
     setSessionId,
     setCode,
@@ -332,8 +332,36 @@ export function HostPage(): React.ReactElement {
       return;
     }
 
+    clearPendingHostRestart();
     void handleCreateSession();
   };
+
+  useEffect(() => {
+    if (!pendingHostRestart) return;
+
+    if (waiting || creating) return;
+
+    if (!isRecentSessionResumable(recentSession) || recentSession.role !== "host") {
+      clearPendingHostRestart();
+      setError("前回のホスト設定が見つかりません");
+      return;
+    }
+
+    if (!selectedSourceId) {
+      return;
+    }
+
+    clearPendingHostRestart();
+    void handleCreateSession();
+  }, [
+    clearPendingHostRestart,
+    creating,
+    pendingHostRestart,
+    recentSession,
+    selectedSourceId,
+    setError,
+    waiting,
+  ]);
 
   const handleCancel = () => {
     void settings.setRecentSession(null);
@@ -464,7 +492,7 @@ export function HostPage(): React.ReactElement {
                 opacity: creating || !selectedSourceId ? 0.6 : 1,
               }}
             >
-              {creating ? "作成中..." : "この設定で新しいセッションを作成"}
+              {creating ? "作成中..." : "ホストをやり直す"}
             </button>
             <div style={{ color: "#7f8ea8", fontSize: 12, alignSelf: "center" }}>
               前回の共有先や画質は引き継ぎます。コードは毎回新しく発行されます。

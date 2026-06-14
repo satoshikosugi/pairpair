@@ -5,7 +5,7 @@ import { useSettingsStore } from "../store/settings-store";
 import { getRecentSessionActionLabel, getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
 
 export function HomePage(): React.ReactElement {
-  const { navigate } = useAppStore();
+  const { navigate, requestHostRestart } = useAppStore();
   const { defaultPreset, loadFromElectron, recentSession, setRecentSession } = useSettingsStore();
 
   useEffect(() => {
@@ -39,15 +39,15 @@ export function HomePage(): React.ReactElement {
         </button>
       </div>
 
-      {isRecentSessionResumable(recentSession) && (
+      {isRecentSessionResumable(recentSession) && recentSession.role === "host" && (
         <div style={resumeCardStyle}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
             <div>
-              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>直前のセッション</div>
+              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>直前のホスト設定</div>
               <div style={{ color: "#9cb0c8", fontSize: 13, lineHeight: 1.7 }}>
                 {getRecentSessionSummary(recentSession)}
                 <br />
-                {recentSession.role === "host" ? "役割: ホスト" : "役割: ゲスト"}
+                役割: ホスト
                 {recentSession.requiresPassphrase && " / 前回はあいことばあり"}
               </div>
             </div>
@@ -56,7 +56,7 @@ export function HomePage(): React.ReactElement {
             </button>
           </div>
           <button
-            onClick={() => navigate(recentSession.role === "host" ? "host-setup" : "guest-join")}
+            onClick={() => requestHostRestart()}
             style={{ ...primaryBtnStyle, marginTop: 14, width: "100%" }}
           >
             {getRecentSessionActionLabel(recentSession)}

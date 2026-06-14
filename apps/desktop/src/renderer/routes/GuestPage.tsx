@@ -1,17 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
-import { useSettingsStore } from "../store/settings-store";
 import { signalingClient } from "../webrtc/signaling-client";
 import { createPeerConnectionAsGuest, handleOffer, handleIce } from "../webrtc/rtc-client";
 import { guestPeerAuthenticator } from "../webrtc/peer-auth";
-import { getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
 export function GuestPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
-  const { recentSession, setRecentSession } = useSettingsStore();
   const {
     setSessionId,
     setCode: setSessionCode,
@@ -27,12 +24,6 @@ export function GuestPage(): React.ReactElement {
   const [connecting, setConnecting] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const passphraseInputRef = useRef<HTMLInputElement>(null);
-  const showResumeCard =
-    isRecentSessionResumable(recentSession) &&
-    recentSession.role === "guest" &&
-    !connecting &&
-    !requiresPassphrase &&
-    code.trim().length === 0;
 
   useEffect(() => {
     if (requiresPassphrase) {
@@ -41,22 +32,6 @@ export function GuestPage(): React.ReactElement {
       codeInputRef.current?.focus();
     }
   }, [requiresPassphrase]);
-
-  const saveRecentGuestSession = async (params: {
-    hostName: string;
-    requiresSecret: boolean;
-  }) => {
-    await setRecentSession({
-      version: 1,
-      role: "guest",
-      hostDeviceName: params.hostName,
-      guestDeviceName: "PairPair Guest",
-      sourceName: null,
-      sourceDisplayId: null,
-      requiresPassphrase: params.requiresSecret,
-      savedAt: Date.now(),
-    });
-  };
 
   const handleConnect = async () => {
     const cleanCode = code.replace(/\s/g, "");
@@ -94,10 +69,6 @@ export function GuestPage(): React.ReactElement {
       setSignalingUrl(data.wsUrl);
       setGuestToken(data.guestToken);
       setHostToken(null);
-      await saveRecentGuestSession({
-        hostName: data.hostDeviceName,
-        requiresSecret: false,
-      });
 
       signalingClient.connect(data.wsUrl, data.sessionId, data.guestToken, "guest");
 
@@ -106,16 +77,8 @@ export function GuestPage(): React.ReactElement {
         cleanCode,
         () => {
           setRequiresPassphrase(true);
-          void saveRecentGuestSession({
-            hostName: data.hostDeviceName,
-            requiresSecret: true,
-          });
         },
         () => {
-          void saveRecentGuestSession({
-            hostName: data.hostDeviceName,
-            requiresSecret: requiresPassphrase || passphrase.length > 0,
-          });
           navigate("guest-session");
         },
         (reason) => {
@@ -144,17 +107,6 @@ export function GuestPage(): React.ReactElement {
     } finally {
       setConnecting(false);
     }
-  };
-
-  const handleReuseSettings = () => {
-    if (!isRecentSessionResumable(recentSession) || recentSession.role !== "guest") {
-      setError("前回設定が見つかりません");
-      return;
-    }
-    setCode("");
-    setPassphrase("");
-    setRequiresPassphrase(false);
-    codeInputRef.current?.focus();
   };
 
   const handleSubmitPassphrase = async () => {
@@ -187,37 +139,6 @@ export function GuestPage(): React.ReactElement {
       <p style={{ color: "#aaa", fontSize: 14, textAlign: "center", maxWidth: 300 }}>
         ホストから共有されたコードを入力してください
       </p>
-
-      {showResumeCard && (
-        <div style={resumeCardStyle}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-            <div>
-              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>直前のゲストセッション</div>
-              <div style={{ color: "#9cb0c8", fontSize: 13, lineHeight: 1.7 }}>
-                {getRecentSessionSummary(recentSession)}
-                {recentSession.requiresPassphrase && (
-                  <>
-                    <br />
-                    前回はあいことば付きでした。新しいコードで接続後に再入力します。
-                  </>
-                )}
-              </div>
-            </div>
-            <button onClick={() => void setRecentSession(null)} style={inlineDangerButtonStyle}>
-              破棄
-            </button>
-          </div>
-          <button
-            onClick={() => {
-              handleReuseSettings();
-            }}
-            disabled={connecting}
-            style={{ ...primaryActionButtonStyle, marginTop: 14, opacity: connecting ? 0.6 : 1 }}
-          >
-            新しいコードを入力する
-          </button>
-        </div>
-      )}
 
       <input
         ref={codeInputRef}
@@ -294,31 +215,3 @@ export function GuestPage(): React.ReactElement {
     </div>
   );
 }
-
-const resumeCardStyle: React.CSSProperties = {
-  width: "min(520px, 92vw)",
-  padding: 18,
-  borderRadius: 14,
-  background: "linear-gradient(180deg, rgba(40,57,92,0.92) 0%, rgba(18,28,48,0.94) 100%)",
-  border: "1px solid rgba(120, 175, 255, 0.24)",
-  boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
-};
-
-const primaryActionButtonStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  background: "#4a9eff",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  fontSize: 14,
-  fontWeight: 700,
-};
-
-const inlineDangerButtonStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  background: "transparent",
-  color: "#ff9e9e",
-  border: "1px solid rgba(255, 120, 120, 0.35)",
-  borderRadius: 8,
-  fontSize: 12,
-};

@@ -292,7 +292,7 @@ export function SessionPage(): React.ReactElement {
 
   const handleDisconnect = useCallback(() => {
     signalingClient.send({ type: "session.close", payload: { reason: isHost ? "host_closed" : "guest_disconnected" } });
-    finalizeSession({ clearRecentSession: true });
+    finalizeSession({ clearRecentSession: !isHost });
   }, [finalizeSession, isHost]);
 
   const handleGuestDisconnected = useCallback(() => {
@@ -320,7 +320,7 @@ export function SessionPage(): React.ReactElement {
   }, [finalizeSession, syncHostOverlay]);
 
   useEffect(() => {
-    if (!role || roleSwitchInProgress) return;
+    if (role !== "host" || roleSwitchInProgress) return;
     const nextSnapshot = {
       version: 1,
       role,

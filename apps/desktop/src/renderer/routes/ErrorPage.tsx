@@ -6,7 +6,7 @@ import { cleanupSession } from "../webrtc/connection-manager";
 import { getRecentSessionActionLabel, isRecentSessionResumable } from "../session-resume";
 
 export function ErrorPage(): React.ReactElement {
-  const { navigate, error, setError } = useAppStore();
+  const { navigate, error, setError, requestHostRestart } = useAppStore();
   const { iceConnectionState, reset } = useSessionStore();
   const { recentSession } = useSettingsStore();
 
@@ -79,9 +79,9 @@ export function ErrorPage(): React.ReactElement {
       >
         ホーム画面へ戻る
       </button>
-      {isRecentSessionResumable(recentSession) && (
+      {isRecentSessionResumable(recentSession) && recentSession.role === "host" && (
         <button
-          onClick={() => navigate(recentSession.role === "host" ? "host-setup" : "guest-join")}
+          onClick={() => requestHostRestart()}
           style={{
             padding: "10px 28px",
             background: "transparent",

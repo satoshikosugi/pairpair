@@ -23,7 +23,7 @@ export default function App(): React.ReactElement {
         return;
       }
       setSessionEndedMessage(
-        isRecentSessionResumable(recentSession)
+        isRecentSessionResumable(recentSession) && recentSession.role === "host"
           ? "接続が切断されました。ホームの「直前のセッション」から前回設定でやり直せます"
           : "接続が切断されました",
       );

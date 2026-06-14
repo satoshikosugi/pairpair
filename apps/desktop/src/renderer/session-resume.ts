@@ -20,7 +20,7 @@ export function isRecentSessionResumable(snapshot: RecentSessionSnapshot | null 
 }
 
 export function getRecentSessionActionLabel(snapshot: RecentSessionSnapshot): string {
-  return snapshot.role === "host" ? "ホストをやり直す" : "ゲスト参加をやり直す";
+  return snapshot.role === "host" ? "ホストをやり直す" : "前回設定を確認";
 }
 
 export function getRecentSessionSummary(snapshot: RecentSessionSnapshot): string {

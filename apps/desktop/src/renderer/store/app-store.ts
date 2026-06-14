@@ -6,18 +6,24 @@ interface AppState {
   currentRoute: AppRoute;
   permissionStatus: { screenRecording: boolean; accessibility: boolean } | null;
   error: string | null;
+  pendingHostRestart: boolean;
 
   navigate: (route: AppRoute) => void;
   setPermissionStatus: (status: { screenRecording: boolean; accessibility: boolean }) => void;
   setError: (error: string | null) => void;
+  requestHostRestart: () => void;
+  clearPendingHostRestart: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   currentRoute: "home",
   permissionStatus: null,
   error: null,
+  pendingHostRestart: false,
 
   navigate: (route) => set({ currentRoute: route, error: null }),
   setPermissionStatus: (status) => set({ permissionStatus: status }),
   setError: (error) => set({ error }),
+  requestHostRestart: () => set({ pendingHostRestart: true, currentRoute: "host-setup", error: null }),
+  clearPendingHostRestart: () => set({ pendingHostRestart: false }),
 }));

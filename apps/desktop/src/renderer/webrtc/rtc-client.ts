@@ -45,11 +45,21 @@ export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
       peerAuthenticated &&
       isInputEventAllowed(event, sessionPermissions) &&
       (controlState === "controlAllowed" || event.type === "text.input" || event.type === "ime.mode");
+    
+    // Debug logging for IME events
+    if (event.type === "ime.mode") {
+      console.log("[HOST] IME event received:", { event, canInject, peerAuthenticated, controlState, keyboard: sessionPermissions.keyboard });
+    }
+    
     if (canInject) {
       const injected = await window.pairpair.injectInput(event);
       if (!injected) {
-        console.error("[PairPair] Failed to inject remote input event", event);
+        console.error("[HOST] Failed to inject remote input event", event);
+      } else if (event.type === "ime.mode") {
+        console.log("[HOST] IME injection succeeded:", event);
       }
+    } else if (event.type === "ime.mode") {
+      console.warn("[HOST] IME event rejected:", { canInject, peerAuthenticated, controlState, keyboard: sessionPermissions.keyboard });
     }
   };
   dataChannelManager.onInput(hostInputHandler);

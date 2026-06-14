@@ -163,12 +163,16 @@ function tapKey(nativeInput: NativeInputModule, keyCode: number): void {
 }
 
 function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" | "latin"): void {
+  log.info(`[IME] setImeMode called: mode=${mode}, platform=${process.platform}`);
   if (process.platform === "darwin") {
     if (mode === "japanese") {
+      log.info("[IME] macOS: injecting Lang1 (Japanese)");
       tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Lang1);
     } else if (mode === "latin") {
+      log.info("[IME] macOS: injecting Lang2 (Latin)");
       tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Lang2);
     } else {
+      log.info("[IME] macOS: injecting Cmd+Space (toggle)");
       nativeInput.keyDown(DOM_KEY_TO_MAC_KEYCODE.MetaLeft);
       tapKey(nativeInput, DOM_KEY_TO_MAC_KEYCODE.Space);
       nativeInput.keyUp(DOM_KEY_TO_MAC_KEYCODE.MetaLeft);
@@ -182,6 +186,7 @@ function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" 
       : mode === "latin"
         ? DOM_KEY_TO_VK.NonConvert
         : DOM_KEY_TO_VK.KanjiMode;
+    log.info(`[IME] Windows: injecting mode=${mode}, keyCode=0x${keyCode.toString(16)}`);
     tapKey(nativeInput, keyCode);
   }
 }
@@ -249,7 +254,9 @@ export function injectInputEvent(event: InputEvent): boolean {
         break;
       }
       case "ime.mode": {
+        log.info(`[IME] Input injection: ime.mode event received, mode=${event.mode}`);
         setImeMode(nativeInput, event.mode);
+        log.info(`[IME] Input injection: ime.mode handled successfully`);
         break;
       }
     }

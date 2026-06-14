@@ -7,7 +7,14 @@ import { getCurrentMacInputSourceMode } from "../native/mac-input-source";
 export function setupInputIpc(): void {
   ipcMain.handle("input:inject", (_event, inputEvent: InputEvent) => {
     try {
-      return injectInputEvent(inputEvent);
+      if (inputEvent.type === "ime.mode") {
+        log.info(`[IME] IPC input:inject received: mode=${inputEvent.mode}`);
+      }
+      const result = injectInputEvent(inputEvent);
+      if (inputEvent.type === "ime.mode") {
+        log.info(`[IME] IPC input:inject returned: result=${result}`);
+      }
+      return result;
     } catch (err) {
       log.error("input:inject error:", err);
       return false;

@@ -189,6 +189,7 @@ export function SessionPage(): React.ReactElement {
   const pendingRoleSwitchGuestTokenRef = useRef<string | null>(null);
   const roleSwitchReadyRetryTimerRef = useRef<number | null>(null);
   const roleSwitchCompletionTimerRef = useRef<number | null>(null);
+  const lastSyncedGuestImeModeRef = useRef<"japanese" | "latin" | null>(null);
   const isHost = role === "host";
   const isHostRef = useRef(isHost);
   const roleSwitchInProgressRef = useRef(roleSwitchInProgress);
@@ -1451,6 +1452,7 @@ export function SessionPage(): React.ReactElement {
       if (imeEvent) {
         if (!e.repeat) {
           guestImeModeRef.current = imeEvent.mode;
+          lastSyncedGuestImeModeRef.current = imeEvent.mode;
           if (adaptiveMode) {
             adaptiveQualityController.onInputEvent(imeEvent);
           }
@@ -1464,6 +1466,7 @@ export function SessionPage(): React.ReactElement {
         if (!e.repeat) {
           const nextMode = guestImeModeRef.current === "latin" ? "japanese" : "latin";
           guestImeModeRef.current = nextMode;
+          lastSyncedGuestImeModeRef.current = nextMode;
           const toggledEvent: ImeModeEvent = { type: "ime.mode", mode: nextMode };
           if (adaptiveMode) {
             adaptiveQualityController.onInputEvent(toggledEvent);
@@ -1529,6 +1532,34 @@ export function SessionPage(): React.ReactElement {
     };
   }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled, sessionPermissions.clipboard, sessionPermissions.keyboard]);
 
+  useEffect(() => {
+    if (isHost || window.pairpair.platform !== "darwin") return;
+    if (controlState !== "controlAllowed" || !sessionPermissions.keyboard) {
+      lastSyncedGuestImeModeRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+
+    void window.pairpair.getMacInputSourceMode().then((mode) => {
+      if (cancelled || (mode !== "japanese" && mode !== "latin")) return;
+
+      guestImeModeRef.current = mode;
+      if (lastSyncedGuestImeModeRef.current === mode) return;
+
+      const imeEvent: ImeModeEvent = { type: "ime.mode", mode };
+      if (adaptiveQualityController.enabled) {
+        adaptiveQualityController.onInputEvent(imeEvent);
+      }
+      dataChannelManager.sendInput(imeEvent);
+      lastSyncedGuestImeModeRef.current = mode;
+    }).catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [controlState, isHost, sessionPermissions.keyboard]);
+
   // macOS ゲスト用: TIS ポーリングで検知した IME モード変化を処理する
   // JIS キー、メニューバー ABC/あ ボタン、Ctrl+Space (US キーボード)、Globe キー
   // など**あらゆる**入力ソース切り替えを統一的にカバーする
@@ -1539,6 +1570,9 @@ export function SessionPage(): React.ReactElement {
       const { controlState: currentControlState, sessionPermissions: currentPermissions } = useSessionStore.getState();
       if (currentControlState !== "controlAllowed" || !currentPermissions.keyboard) return;
       if (input.mode !== "japanese" && input.mode !== "latin") return;
+
+      guestImeModeRef.current = input.mode;
+      lastSyncedGuestImeModeRef.current = input.mode;
 
       const imeEvent: ImeModeEvent = {
         type: "ime.mode",

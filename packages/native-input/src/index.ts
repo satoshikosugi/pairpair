@@ -11,6 +11,7 @@ export interface NativeInputModule {
   keyUp(vkCode: number): void;
   typeText(text: string): void;
   focusWindow(windowId: string): void;
+  setImeModeForWindow?(windowId: string, open: boolean): void;
 }
 
 declare const require: (id: string) => unknown;
@@ -162,6 +163,14 @@ export function setImeMode(open: boolean): void {
   }
   const mod = getModule() as unknown as { setImeMode?: (open: boolean) => void };
   mod.setImeMode?.(open);
+}
+
+export function setImeModeForWindow(windowId: string, open: boolean): void {
+  if (typeof process !== "undefined" && process.platform !== "win32") {
+    return;
+  }
+  const mod = getModule() as unknown as { setImeModeForWindow?: (windowId: string, open: boolean) => void };
+  mod.setImeModeForWindow?.(windowId, open);
 }
 
 // DOM code to Windows virtual-key mapping

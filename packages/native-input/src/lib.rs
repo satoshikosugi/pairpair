@@ -119,3 +119,12 @@ pub fn set_ime_mode(open: bool) {
   #[cfg(not(target_os = "windows"))]
   let _ = open;
 }
+
+/// Windows IMM32 API を使って、指定ウィンドウの IME を直接 ON/OFF する。
+#[napi]
+pub fn set_ime_mode_for_window(window_id: String, open: bool) {
+  #[cfg(target_os = "windows")]
+  windows_input::set_ime_mode_for_window_win(&window_id, open);
+  #[cfg(not(target_os = "windows"))]
+  let _ = (window_id, open);
+}

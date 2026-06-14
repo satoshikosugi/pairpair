@@ -22,6 +22,13 @@ pub fn focus_window(window_id: &str) {
   }
 }
 
+fn parse_hwnd(window_id: &str) -> Option<HWND> {
+  let Ok(raw_handle) = window_id.parse::<isize>() else {
+    return None;
+  };
+  Some(HWND(raw_handle))
+}
+
 pub fn move_mouse(x: i32, y: i32) {
   unsafe {
     let _ = SetCursorPos(x, y);
@@ -184,6 +191,28 @@ pub fn set_ime_mode_win(open: bool) {
   #[cfg(target_os = "windows")]
   unsafe {
     let hwnd = GetForegroundWindow();
+    if hwnd.0 == 0 {
+      return;
+    }
+    set_ime_open_status(hwnd, open);
+  }
+}
+
+pub fn set_ime_mode_for_window_win(window_id: &str, open: bool) {
+  #[cfg(target_os = "windows")]
+  unsafe {
+    let Some(hwnd) = parse_hwnd(window_id) else {
+      return;
+    };
+    if hwnd.0 == 0 {
+      return;
+    }
+    set_ime_open_status(hwnd, open);
+  }
+}
+
+unsafe fn set_ime_open_status(hwnd: HWND, open: bool) {
+  unsafe {
     if hwnd.0 == 0 {
       return;
     }

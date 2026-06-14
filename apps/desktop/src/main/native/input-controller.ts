@@ -32,6 +32,8 @@ interface NativeInputModule {
   getCurrentImeMode?(): string;
   /** Windows のみ: IMM32 API で IME の ON/OFF を直接制御する */
   setImeMode?(open: boolean): void;
+  /** Windows のみ: 指定ウィンドウの IME ON/OFF を直接制御する */
+  setImeModeForWindow?(windowId: string, open: boolean): void;
 }
 
 function getNativeBinaryName(): string | null {
@@ -52,6 +54,7 @@ function getNativeBinaryName(): string | null {
 function getNativeBinaryOverrides(binaryName: string): string[] {
   if (!binaryName.endsWith(".node")) return [];
   return [
+    binaryName.replace(/\.node$/, ".override.node"),
     binaryName.replace(/\.node$/, ".local.node"),
   ];
 }
@@ -208,6 +211,12 @@ function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" 
 
   if (process.platform === "win32") {
     // IMM32 API (ImmSetOpenStatus) が使えれば最も確実
+    if (targetWindowId && nativeInput.setImeModeForWindow) {
+      const open = mode === "japanese" || mode === "toggle";
+      log.info(`[IME] Windows: calling setImeModeForWindow(windowId=${targetWindowId}, open=${open}) via IMM32`);
+      nativeInput.setImeModeForWindow(targetWindowId, open);
+      return;
+    }
     if (nativeInput.setImeMode) {
       const open = mode === "japanese" || mode === "toggle";
       log.info(`[IME] Windows: calling setImeMode(open=${open}) via IMM32`);

@@ -252,8 +252,12 @@ function deployDesktopApp() {
     "--prod",
     "deploy",
     "--legacy",
-    appStageRoot,
+    deployTempRoot,
   ]);
+  fs.cpSync(deployTempRoot, appStageRoot, {
+    recursive: true,
+    verbatimSymlinks: false,
+  });
 }
 
 function removePath(targetPath) {

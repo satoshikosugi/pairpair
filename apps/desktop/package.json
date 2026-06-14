@@ -4,6 +4,9 @@
   "description": "PairPair - Remote pair programming application",
   "author": "PairPair Contributors",
   "private": true,
+  "files": [
+    "out"
+  ],
   "main": "./out/main/index.js",
   "scripts": {
     "predev": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs",

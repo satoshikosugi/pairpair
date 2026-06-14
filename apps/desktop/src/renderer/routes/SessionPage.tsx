@@ -46,6 +46,7 @@ import { startMetricsCollection, startSharpnessAnalysis } from "../utils/quality
 import { dataChannelManager } from "../webrtc/data-channel";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { guestPeerAuthenticator, hostPeerAuthenticator } from "../webrtc/peer-auth";
+import { normalizeNickname } from "../display-name";
 
 const CURSOR_HIDE_DELAY_MS = 3000;
 const FULLSCREEN_ESCAPE_INTERVAL_MS = 450;
@@ -132,7 +133,10 @@ export function SessionPage(): React.ReactElement {
     sessionPermissions,
     clipboardHistory,
   } = useSessionStore();
-  const { pairproProfiles, wheelDirection, saveToElectron, lastSourceName, lastSourceDisplayId, recentSession, setRecentSession } = useSettingsStore();
+  const { pairproProfiles, wheelDirection, saveToElectron, lastSourceName, lastSourceDisplayId, recentSession, setRecentSession, nickname } = useSettingsStore();
+  const localNickname = normalizeNickname(nickname);
+  const remoteGuestName = normalizeNickname(guestDeviceName);
+  const remoteHostName = normalizeNickname(hostDeviceName);
 
   const [stats, setStats] = useState<WebRTCStats>({});
   const [showStats, setShowStats] = useState(false);
@@ -324,7 +328,7 @@ export function SessionPage(): React.ReactElement {
     const nextSnapshot = {
       version: 1,
       role,
-      hostDeviceName: role === "host" ? "PairPair Host" : hostDeviceName,
+      hostDeviceName: role === "host" ? localNickname : remoteHostName,
       guestDeviceName,
       sourceName: lastSourceName,
       sourceDisplayId: lastSourceDisplayId,
@@ -348,6 +352,8 @@ export function SessionPage(): React.ReactElement {
     hostDeviceName,
     lastSourceDisplayId,
     lastSourceName,
+    localNickname,
+    remoteHostName,
     role,
     roleSwitchInProgress,
     setRecentSession,
@@ -454,7 +460,7 @@ export function SessionPage(): React.ReactElement {
       throw new Error("役割切替に必要なセッション情報が不足しています");
     }
 
-    const nextHostName = guestDeviceName ?? "PairPair Guest";
+    const nextHostName = normalizeNickname(guestDeviceName);
     console.info(
       `[PairPair][RoleSwitch] reconnectAsGuestAfterRoleSwitch sessionId=${sessionId} nextHostName=${nextHostName} token=${nextGuestToken.slice(0, 8)}`,
     );
@@ -518,7 +524,7 @@ export function SessionPage(): React.ReactElement {
       throw new Error("役割切替に必要なセッション情報が不足しています");
     }
 
-    const nextGuestName = hostDeviceName ?? "PairPair Host";
+    const nextGuestName = normalizeNickname(hostDeviceName);
     const preset = selectedPreset === "Custom"
       ? ({ ...customPreset, name: "Custom" } as QualityPreset)
       : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
@@ -1507,7 +1513,7 @@ export function SessionPage(): React.ReactElement {
         >
           <span style={{ fontWeight: "bold", color: "#4a9eff" }}>PairPair - ホスト中</span>
           <ConnectionStatus />
-          <span style={{ color: "#aaa", fontSize: 13 }}>接続先: {guestDeviceName ?? "---"}</span>
+          <span style={{ color: "#aaa", fontSize: 13 }}>接続先: {remoteGuestName}</span>
           <span style={{ color: "#aaa", fontSize: 13 }}>{connectionState === "connected" ? "P2P接続済み" : "接続中..."}</span>
           <span style={{ color: "#aaa", fontSize: 12 }}>
             注釈: {annotations.length}本 / カーソル: {remoteCursor?.visible ? "表示中" : "非表示"}
@@ -1820,7 +1826,7 @@ export function SessionPage(): React.ReactElement {
         >
           <span style={{ fontWeight: "bold", color: "#4a9eff" }}>PairPair - ゲスト</span>
           <ConnectionStatus />
-          <span style={{ color: "#aaa", fontSize: 13 }}>{hostDeviceName ?? "Host"}</span>
+          <span style={{ color: "#aaa", fontSize: 13 }}>接続先: {remoteHostName}</span>
           <StatsOverlay stats={stats} visible={showStats} onToggle={() => setShowStats(!showStats)} />
           <button
             onClick={handleDisconnect}

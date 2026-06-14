@@ -1,3 +1,5 @@
+import { normalizeNickname } from "./display-name";
+
 export type RecentSessionRole = "host" | "guest";
 
 export interface RecentSessionSnapshot {
@@ -28,7 +30,7 @@ export function getRecentSessionSummary(snapshot: RecentSessionSnapshot): string
     if (snapshot.sourceName) {
       return `前回の共有先: ${snapshot.sourceName}`;
     }
-    return `${snapshot.guestDeviceName ?? "Guest"} と使った設定`;
+    return `${normalizeNickname(snapshot.guestDeviceName)} と使った設定`;
   }
-  return `${snapshot.hostDeviceName ?? "Host"} への参加設定`;
+  return `${normalizeNickname(snapshot.hostDeviceName)} への参加設定`;
 }

@@ -4,6 +4,7 @@ import log from "electron-log";
 
 const store = new Store({
   defaults: {
+    nickname: "",
     defaultPreset: "Balanced",
     stunServer: "stun:stun.l.google.com:19302",
     connectionTimeout: 30,

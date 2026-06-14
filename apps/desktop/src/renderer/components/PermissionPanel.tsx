@@ -3,6 +3,7 @@ import { getPermissionPreset, type PermissionPresetId } from "@pairpair/shared";
 import type { ClipboardHistoryEntry } from "../store/session-store";
 import { useSessionStore } from "../store/session-store";
 import { dataChannelManager } from "../webrtc/data-channel";
+import { normalizeNickname } from "../display-name";
 
 interface PermissionPanelProps {
   role: "host" | "guest";
@@ -38,6 +39,7 @@ export function PermissionPanel({
   const latestRemoteEntry = clipboardHistory.find((entry) => entry.direction === "received");
   const historyCount = clipboardHistory.length;
   const receivedCount = clipboardHistory.filter((entry) => entry.direction === "received").length;
+  const guestDisplayName = normalizeNickname(guestDeviceName);
 
   useEffect(() => {
     if (!latestRemoteEntry || latestRemoteEntry.id === latestNotifiedReceivedId) return;
@@ -268,11 +270,11 @@ export function PermissionPanel({
             </div>
             {controlState === "controlRequested" && (
               <div style={{ marginBottom: 8, color: "#ffa500" }}>
-                {guestDeviceName ?? "Guest"} が操作をリクエストしています
+                {guestDisplayName} が操作をリクエストしています
               </div>
             )}
             {controlState === "controlAllowed" && (
-              <div style={{ marginBottom: 8, color: "#00c851" }}>{guestDeviceName ?? "Guest"} が操作中</div>
+              <div style={{ marginBottom: 8, color: "#00c851" }}>{guestDisplayName} が操作中</div>
             )}
             <div style={{ display: "flex", gap: 8 }}>
               {controlState === "controlRequested" && (

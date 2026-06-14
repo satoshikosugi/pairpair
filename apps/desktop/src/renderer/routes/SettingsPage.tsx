@@ -3,6 +3,7 @@ import type { QualityPresetName, PairProActivityState } from "@pairpair/shared";
 import { calcBitrateMbps } from "@pairpair/shared";
 import { useAppStore } from "../store/app-store";
 import { useSettingsStore } from "../store/settings-store";
+import { normalizeNickname, sanitizeNicknameInput } from "../display-name";
 
 export function SettingsPage(): React.ReactElement {
   const { navigate } = useAppStore();
@@ -66,6 +67,23 @@ export function SettingsPage(): React.ReactElement {
 
       <section style={{ marginBottom: 24 }}>
         <h3 style={sectionHeader}>一般</h3>
+        <SettingItem label="ニックネーム">
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+            <input
+              type="text"
+              value={settings.nickname}
+              onChange={(e) => {
+                void handleChange("nickname", sanitizeNicknameInput(e.target.value));
+              }}
+              placeholder="未設定なら無名"
+              maxLength={30}
+              style={{ ...inputStyle, width: 220 }}
+            />
+            <div style={{ color: "#777", fontSize: 11 }}>
+              接続相手には {normalizeNickname(settings.nickname)} と表示されます
+            </div>
+          </div>
+        </SettingItem>
         <SettingItem label="終了時に確認する">
           <input
             type="checkbox"

@@ -4,6 +4,7 @@ import { PAIRPRO_DEFAULT_PROFILES } from "@pairpair/shared";
 import type { RecentSessionSnapshot } from "../session-resume";
 
 interface SettingsState {
+  nickname: string;
   defaultPreset: QualityPresetName;
   stunServer: string;
   connectionTimeout: number;
@@ -37,6 +38,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
+  nickname: "",
   defaultPreset: "Balanced",
   stunServer: "stun:pairpair-signaling-server-245497898064.asia-northeast1.run.app:3478",
   connectionTimeout: 30,
@@ -83,6 +85,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     try {
       const settings = (await window.pairpair.getAllSettings()) as Record<string, unknown>;
       set({
+        nickname: (settings.nickname as string) ?? "",
         defaultPreset: (settings.defaultPreset as QualityPresetName) ?? "Balanced",
         stunServer: (settings.stunServer as string) ?? "stun:pairpair-signaling-server-245497898064.asia-northeast1.run.app:3478",
         connectionTimeout: (settings.connectionTimeout as number) ?? 30,

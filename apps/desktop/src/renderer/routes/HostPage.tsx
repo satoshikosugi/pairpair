@@ -12,6 +12,7 @@ import { hostPeerAuthenticator } from "../webrtc/peer-auth";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import type { InputEvent } from "@pairpair/shared";
+import { normalizeNickname } from "../display-name";
 import { getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
@@ -69,6 +70,7 @@ export function HostPage(): React.ReactElement {
   } = useSessionStore();
   const settings = useSettingsStore();
   const { pairproProfiles, recentSession } = settings;
+  const localNickname = normalizeNickname(settings.nickname);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<ScreenSource | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(settings.lastHostPreset ?? settings.defaultPreset);
@@ -93,14 +95,14 @@ export function HostPage(): React.ReactElement {
     await settings.setRecentSession({
       version: 1,
       role: "host",
-      hostDeviceName: "PairPair Host",
+      hostDeviceName: localNickname,
       guestDeviceName: nextGuestDeviceName,
       sourceName: selectedSource?.name ?? settings.lastSourceName,
       sourceDisplayId: selectedSource?.display_id ?? settings.lastSourceDisplayId,
       requiresPassphrase: passphrase.trim().length > 0,
       savedAt: Date.now(),
     });
-  }, [passphrase, selectedSource, settings]);
+  }, [localNickname, passphrase, selectedSource, settings]);
 
   useEffect(() => {
     if (!waiting || !expiresAt) return;
@@ -188,7 +190,7 @@ export function HostPage(): React.ReactElement {
 
     signalingClient.on("guest.joined", (msg) => {
       const payload = msg.payload as { guestDeviceName?: string };
-      const guestName = payload.guestDeviceName ?? "Guest";
+      const guestName = normalizeNickname(payload.guestDeviceName);
       setGuestDeviceName(guestName);
       void saveRecentHostSession(guestName);
 
@@ -289,7 +291,7 @@ export function HostPage(): React.ReactElement {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           appVersion: "0.1.0",
-          deviceName: "PairPair Host",
+          deviceName: localNickname,
           platform: window.pairpair.platform,
         }),
       });
@@ -400,6 +402,7 @@ export function HostPage(): React.ReactElement {
         }}
       >
         <h2 style={{ color: "#4a9eff" }}>ゲストを待っています</h2>
+        <div style={{ color: "#aaa", fontSize: 13 }}>あなたの表示名: {localNickname}</div>
         <div style={{ textAlign: "center" }}>
           <div style={{ color: "#888", fontSize: 14, marginBottom: 8 }}>接続コード</div>
           <div style={{ fontSize: 48, fontWeight: "bold", letterSpacing: 8, color: "#fff" }}>{formatCode(code)}</div>

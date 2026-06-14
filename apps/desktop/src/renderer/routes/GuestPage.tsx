@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
+import { useSettingsStore } from "../store/settings-store";
 import { signalingClient } from "../webrtc/signaling-client";
 import { createPeerConnectionAsGuest, handleOffer, handleIce } from "../webrtc/rtc-client";
 import { guestPeerAuthenticator } from "../webrtc/peer-auth";
+import { normalizeNickname } from "../display-name";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
 export function GuestPage(): React.ReactElement {
   const { navigate, setError } = useAppStore();
+  const settings = useSettingsStore();
   const {
     setSessionId,
     setCode: setSessionCode,
@@ -24,6 +27,7 @@ export function GuestPage(): React.ReactElement {
   const [connecting, setConnecting] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const passphraseInputRef = useRef<HTMLInputElement>(null);
+  const localNickname = normalizeNickname(settings.nickname);
 
   useEffect(() => {
     if (requiresPassphrase) {
@@ -48,7 +52,7 @@ export function GuestPage(): React.ReactElement {
         body: JSON.stringify({
           code: cleanCode,
           appVersion: "0.1.0",
-          deviceName: "PairPair Guest",
+          deviceName: localNickname,
           platform: window.pairpair.platform,
         }),
       });
@@ -65,7 +69,7 @@ export function GuestPage(): React.ReactElement {
       setSessionId(data.sessionId);
       setSessionCode(cleanCode);
       setRole("guest");
-      setHostDeviceName(data.hostDeviceName);
+      setHostDeviceName(normalizeNickname(data.hostDeviceName));
       setSignalingUrl(data.wsUrl);
       setGuestToken(data.guestToken);
       setHostToken(null);

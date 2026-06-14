@@ -405,6 +405,11 @@ export function SessionPage(): React.ReactElement {
     }, ROLE_SWITCH_COMPLETION_TIMEOUT_MS);
   }, [clearRoleSwitchCompletionTimeout, setError]);
 
+  const setRoleAndSyncMenu = useCallback((nextRole: "host" | "guest" | null) => {
+    useSessionStore.getState().setRole(nextRole);
+    void window.pairpair.setSessionRole(nextRole).catch(console.error);
+  }, []);
+
   const clearFullscreenRequest = useCallback(() => {
     fullscreenRequestPendingRef.current = false;
     if (fullscreenRequestTimerRef.current !== null) {
@@ -474,7 +479,7 @@ export function SessionPage(): React.ReactElement {
     await preparePeerReconnection();
     startRoleSwitchCompletionTimeout();
 
-    useSessionStore.getState().setRole("guest");
+    setRoleAndSyncMenu("guest");
     useSessionStore.getState().setHostDeviceName(nextHostName);
     useSessionStore.getState().setGuestDeviceName(null);
     useSessionStore.getState().setControlState("viewOnly");
@@ -524,7 +529,7 @@ export function SessionPage(): React.ReactElement {
         setError(`役割切替後のゲスト認証に失敗しました: ${reason}`);
       },
     );
-  }, [clearRoleSwitchCompletionTimeout, code, finalizeSession, guestDeviceName, preparePeerReconnection, sessionId, setError, signalingUrl, startRoleSwitchCompletionTimeout]);
+  }, [clearRoleSwitchCompletionTimeout, code, finalizeSession, guestDeviceName, preparePeerReconnection, sessionId, setError, setRoleAndSyncMenu, signalingUrl, startRoleSwitchCompletionTimeout]);
 
   const reconnectAsHostAfterRoleSwitch = useCallback(async (nextHostToken: string, source: ScreenSource) => {
     if (!sessionId || !signalingUrl || !guestToken || !code) {
@@ -544,7 +549,7 @@ export function SessionPage(): React.ReactElement {
     startRoleSwitchCompletionTimeout();
     await hostPeerAuthenticator.prepare(code, "");
 
-    useSessionStore.getState().setRole("host");
+    setRoleAndSyncMenu("host");
     useSessionStore.getState().setGuestDeviceName(nextGuestName);
     useSessionStore.getState().setHostDeviceName(null);
     useSessionStore.getState().setControlState("viewOnly");
@@ -625,6 +630,7 @@ export function SessionPage(): React.ReactElement {
     selectedPreset,
     sessionId,
     setError,
+    setRoleAndSyncMenu,
     signalingUrl,
     startRoleSwitchCompletionTimeout,
     clearRoleSwitchCompletionTimeout,

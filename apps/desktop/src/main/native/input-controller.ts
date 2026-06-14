@@ -196,9 +196,13 @@ function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" 
       nativeInput.setImeMode(open);
       return;
     }
-    // フォールバック: SendInput で VK_KANJI (トグル)
-    log.info(`[IME] Windows: setImeMode not available, fallback to VK_KANJI toggle`);
-    tapKey(nativeInput, DOM_KEY_TO_VK.KanjiMode);
+    const fallbackKeyCode = mode === "japanese"
+      ? DOM_KEY_TO_VK.KanaMode
+      : mode === "latin"
+        ? DOM_KEY_TO_VK.NonConvert
+        : DOM_KEY_TO_VK.KanjiMode;
+    log.info(`[IME] Windows: setImeMode not available, fallback keyCode=${fallbackKeyCode} for mode=${mode}`);
+    tapKey(nativeInput, fallbackKeyCode);
   }
 }
 

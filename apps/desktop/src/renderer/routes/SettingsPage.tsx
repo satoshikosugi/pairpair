@@ -111,6 +111,15 @@ export function SettingsPage(): React.ReactElement {
             }}
           />
         </SettingItem>
+        <SettingItem label="ゲスト側でホストカーソルを描画">
+          <input
+            type="checkbox"
+            checked={settings.showCursor}
+            onChange={(e) => {
+              void handleChange("showCursor", e.target.checked);
+            }}
+          />
+        </SettingItem>
       </section>
 
       <section style={{ marginBottom: 24 }}>

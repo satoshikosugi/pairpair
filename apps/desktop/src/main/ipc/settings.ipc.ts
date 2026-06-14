@@ -13,7 +13,7 @@ function getStore(): Store {
         defaultPreset: "Balanced",
         stunServer: "stun:stun.l.google.com:19302",
         connectionTimeout: 30,
-        showCursor: true,
+        showCursor: false,
         confirmOnExit: true,
         saveLastSettings: true,
         logEnabled: true,

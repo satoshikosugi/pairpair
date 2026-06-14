@@ -59,6 +59,7 @@ const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 const ROLE_SWITCH_COMPLETION_TIMEOUT_MS = 15000;
 const SPOTLIGHT_DURATION_MS = 3000;
 const HOST_CURSOR_SEND_INTERVAL_MS = 33;
+const HOST_CURSOR_REFRESH_MS = 500;
 
 function getToolboxBounds(
   panelWidth: number,
@@ -139,7 +140,7 @@ export function SessionPage(): React.ReactElement {
     sessionPermissions,
     clipboardHistory,
   } = useSessionStore();
-  const { pairproProfiles, wheelDirection, saveToElectron, lastSourceName, lastSourceDisplayId, recentSession, setRecentSession, nickname } = useSettingsStore();
+  const { pairproProfiles, wheelDirection, saveToElectron, lastSourceName, lastSourceDisplayId, recentSession, setRecentSession, nickname, showCursor } = useSettingsStore();
   const localNickname = normalizeNickname(nickname);
   const remoteGuestName = normalizeNickname(guestDeviceName);
   const remoteHostName = normalizeNickname(hostDeviceName);
@@ -1254,9 +1255,13 @@ export function SessionPage(): React.ReactElement {
 
         const prev = hostCursorRef.current;
         const prevVisible = prev?.visible ?? false;
+        const shouldRefreshVisibleCursor =
+          cursor.visible &&
+          (!prev || cursor.timestamp - prev.timestamp >= HOST_CURSOR_REFRESH_MS);
         const changed =
           prevVisible !== cursor.visible ||
           prev?.kind !== cursor.kind ||
+          shouldRefreshVisibleCursor ||
           (cursor.visible && (
             !prev ||
             Math.abs(prev.x - cursor.x) > 0.001 ||
@@ -1286,6 +1291,11 @@ export function SessionPage(): React.ReactElement {
       hostCursorRef.current = null;
     };
   }, [isHost]);
+
+  useEffect(() => {
+    if (showCursor) return;
+    setHostCursor(null);
+  }, [showCursor]);
 
   useEffect(() => {
     const handler = (message: ControlMessage) => {
@@ -1336,7 +1346,7 @@ export function SessionPage(): React.ReactElement {
         }
         case "host.cursor": {
           if (isHost) return;
-          setHostCursor(message.cursor.visible ? message.cursor : null);
+          setHostCursor(showCursor && message.cursor.visible ? message.cursor : null);
           break;
         }
         case "spotlight.show": {
@@ -1427,6 +1437,7 @@ export function SessionPage(): React.ReactElement {
     setCursorWithTimeout,
     setSpotlightWithTimeout,
     setError,
+    showCursor,
     syncHostOverlay,
     upsertStrokePoint,
   ]);
@@ -2005,7 +2016,7 @@ export function SessionPage(): React.ReactElement {
       <RemoteVideoView
         annotations={annotations}
         remoteCursor={null}
-        hostCursor={isHost ? null : hostCursor}
+        hostCursor={isHost || !showCursor ? null : hostCursor}
         spotlight={spotlight}
         markerEnabled={markerEnabled}
         onMarkerStart={beginMarkerStroke}

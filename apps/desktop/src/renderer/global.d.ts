@@ -45,6 +45,10 @@ declare global {
       removeGuestToolboxStateListener: () => void;
       onGuestToolboxAction: (callback: (action: GuestToolboxAction) => void) => void;
       removeGuestToolboxActionListener: () => void;
+      onPromoteGuestToHost: (callback: () => void) => void;
+      removePromoteGuestToHostListener: () => void;
+      onImeKey: (callback: (input: { mode: string }) => void) => void;
+      removeImeKeyListener: () => void;
     };
   }
 }

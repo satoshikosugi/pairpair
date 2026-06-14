@@ -102,6 +102,7 @@ export function setupSessionIpc(): void {
   });
 
   ipcMain.handle("session:setRole", (event, role: "host" | "guest" | null) => {
+    log.info(`[Menu] session:setRole IPC received: role=${String(role)}, platform=${process.platform}`);
     setupApplicationMenu(role);
     if (role === "guest" && process.platform === "darwin") {
       startImeMonitor(event.sender.id);

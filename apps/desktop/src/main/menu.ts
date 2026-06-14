@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
+import log from "electron-log";
 import { getMainWindow } from "./window";
 import { sendToRenderer } from "./window";
 
@@ -228,6 +229,7 @@ function openMainWindowDevTools(): void {
 }
 
 export function setupApplicationMenu(role: MenuRole = null): void {
+  log.info(`[Menu] setupApplicationMenu called: role=${String(role)}`);
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -273,4 +275,5 @@ export function setupApplicationMenu(role: MenuRole = null): void {
   }
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  log.info(`[Menu] Application menu set: items=[${template.map((t) => String(t.label)).join(", ")}]`);
 }

@@ -450,6 +450,8 @@ export function SessionPage(): React.ReactElement {
     clearFullscreenRequest();
     setShowRoleSwitchPicker(false);
     setFullscreen(false);
+    void window.pairpair.hideHostOverlay().catch(console.error);
+    void window.pairpair.setGuestFullscreen(false).catch(() => undefined);
     signalingClient.clearHandlers();
     hostPeerAuthenticator.reset();
     guestPeerAuthenticator.stop();

@@ -27,6 +27,12 @@ export function GuestPage(): React.ReactElement {
   const [connecting, setConnecting] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const passphraseInputRef = useRef<HTMLInputElement>(null);
+  const showResumeCard =
+    isRecentSessionResumable(recentSession) &&
+    recentSession.role === "guest" &&
+    !connecting &&
+    !requiresPassphrase &&
+    code.trim().length === 0;
 
   useEffect(() => {
     if (requiresPassphrase) {
@@ -245,7 +251,7 @@ export function GuestPage(): React.ReactElement {
         ホストから共有されたコードを入力してください
       </p>
 
-      {isRecentSessionResumable(recentSession) && recentSession.role === "guest" && (
+      {showResumeCard && (
         <div style={resumeCardStyle}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
             <div>

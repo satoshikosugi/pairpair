@@ -323,8 +323,7 @@ export function SessionPage(): React.ReactElement {
     if (!sessionId || !code || !role || roleSwitchInProgress) return;
     const token = role === "host" ? hostToken : guestToken;
     if (!token) return;
-
-    void setRecentSession({
+    const nextSnapshot = {
       version: 1,
       role,
       stage: role === "host" && !guestDeviceName ? "waiting" : "active",
@@ -339,7 +338,25 @@ export function SessionPage(): React.ReactElement {
       sourceDisplayId: lastSourceDisplayId,
       requiresPassphrase: recentSession?.sessionId === sessionId ? recentSession.requiresPassphrase : false,
       savedAt: Date.now(),
-    });
+    } as const;
+
+    const unchanged =
+      recentSession?.version === nextSnapshot.version &&
+      recentSession.role === nextSnapshot.role &&
+      recentSession.stage === nextSnapshot.stage &&
+      recentSession.sessionId === nextSnapshot.sessionId &&
+      recentSession.code === nextSnapshot.code &&
+      recentSession.wsUrl === nextSnapshot.wsUrl &&
+      recentSession.token === nextSnapshot.token &&
+      recentSession.expiresAt === nextSnapshot.expiresAt &&
+      recentSession.hostDeviceName === nextSnapshot.hostDeviceName &&
+      recentSession.guestDeviceName === nextSnapshot.guestDeviceName &&
+      recentSession.sourceName === nextSnapshot.sourceName &&
+      recentSession.sourceDisplayId === nextSnapshot.sourceDisplayId &&
+      recentSession.requiresPassphrase === nextSnapshot.requiresPassphrase;
+
+    if (unchanged) return;
+    void setRecentSession(nextSnapshot);
   }, [
     code,
     guestDeviceName,
@@ -348,7 +365,6 @@ export function SessionPage(): React.ReactElement {
     hostToken,
     lastSourceDisplayId,
     lastSourceName,
-    recentSession,
     role,
     roleSwitchInProgress,
     sessionId,

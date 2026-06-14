@@ -320,3 +320,5 @@ module.exports.keyUp = keyUp
 module.exports.typeText = typeText
 module.exports.focusWindow = focusWindow
 module.exports.getCurrentImeMode = getCurrentImeMode
+module.exports.DOM_KEY_TO_VK = require('./dist/index.js').DOM_KEY_TO_VK
+module.exports.DOM_KEY_TO_MAC_KEYCODE = require('./dist/index.js').DOM_KEY_TO_MAC_KEYCODE

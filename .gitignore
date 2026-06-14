@@ -5,6 +5,8 @@ node_modules/
 dist/
 out/
 build/
+# Electron builder resources (build/ under apps/desktop) must be tracked
+!apps/desktop/build/
 .turbo/
 *.node
 

@@ -20,6 +20,30 @@ function getCliOption(name) {
 const targetPlatform = getCliOption("platform");
 const targetArch = getCliOption("arch");
 const nativeTarget = getCliOption("native-target");
+const nativeInputRoot = path.join(packageRoot, "native-input");
+
+function getEffectivePlatform() {
+  return targetPlatform ?? process.platform;
+}
+
+function getEffectiveArch() {
+  return targetArch ?? process.arch;
+}
+
+function getNativeBinaryName(platform, arch) {
+  if (platform === "win32") {
+    if (arch === "x64") return "index.win32-x64-msvc.node";
+    if (arch === "ia32") return "index.win32-ia32-msvc.node";
+    if (arch === "arm64") return "index.win32-arm64-msvc.node";
+  }
+
+  if (platform === "darwin") {
+    if (arch === "x64") return "index.darwin-x64.node";
+    if (arch === "arm64") return "index.darwin-arm64.node";
+  }
+
+  return null;
+}
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -47,7 +71,7 @@ function runPnpm(args, options = {}) {
 }
 
 function runAllowFailure(command, args, options = {}) {
-  spawnSync(command, args, {
+  return spawnSync(command, args, {
     cwd: desktopRoot,
     stdio: "ignore",
     shell: false,
@@ -72,6 +96,66 @@ function sleep(milliseconds) {
 
 function ensureElectronInstalled() {
   run(process.execPath, [path.join(desktopRoot, "scripts", "ensure-electron-install.cjs")]);
+}
+
+function commandExists(command) {
+  const lookup = process.platform === "win32" ? "where" : "which";
+  const result = runAllowFailure(lookup, [command], { shell: process.platform === "win32" });
+  return result.status === 0;
+}
+
+function getNewestMtimeMs(targetPath) {
+  const stat = fs.statSync(targetPath);
+  if (!stat.isDirectory()) {
+    return stat.mtimeMs;
+  }
+
+  let newest = stat.mtimeMs;
+  for (const entry of fs.readdirSync(targetPath)) {
+    newest = Math.max(newest, getNewestMtimeMs(path.join(targetPath, entry)));
+  }
+  return newest;
+}
+
+function needsNativeBuild() {
+  const binaryName = getNativeBinaryName(getEffectivePlatform(), getEffectiveArch());
+  if (!binaryName) {
+    return false;
+  }
+
+  const binaryPath = path.join(nativeInputRoot, binaryName);
+  const rustInputs = [
+    path.join(nativeInputRoot, "Cargo.toml"),
+    path.join(nativeInputRoot, "build.rs"),
+    path.join(nativeInputRoot, "src"),
+  ];
+  const newestRustInput = Math.max(...rustInputs.map((targetPath) => getNewestMtimeMs(targetPath)));
+  const hasBinary = fs.existsSync(binaryPath);
+  const binaryMtime = hasBinary ? fs.statSync(binaryPath).mtimeMs : 0;
+
+  return !hasBinary || newestRustInput > binaryMtime;
+}
+
+function ensureCargoAvailableIfNeeded() {
+  if (!needsNativeBuild()) {
+    return;
+  }
+
+  if (commandExists("cargo")) {
+    return;
+  }
+
+  const platform = getEffectivePlatform();
+  const arch = getEffectiveArch();
+  const binaryName = getNativeBinaryName(platform, arch) ?? "<unknown>";
+  throw new Error(
+    [
+      `Rust toolchain is required to build native input for ${platform}/${arch}.`,
+      `Missing command: cargo`,
+      `Expected native binary: packages/native-input/${binaryName}`,
+      `Install Rust via https://rustup.rs/ and rerun the package command.`,
+    ].join("\n"),
+  );
 }
 
 function cleanupWindowsPackagingOutput() {
@@ -114,22 +198,26 @@ function cleanupWindowsPackagingOutput() {
 }
 
 function buildWorkspacePackages() {
-  if (nativeTarget) {
-    runPnpm([
-      "--dir",
-      path.join(packageRoot, "native-input"),
-      "exec",
-      "napi",
-      "build",
-      "--platform",
-      "--release",
-      "--target",
-      nativeTarget,
-    ]);
-  } else {
-    runPnpm(["--dir", path.join(packageRoot, "native-input"), "build:native:release"]);
+  const shouldBuildNative = needsNativeBuild();
+  if (shouldBuildNative) {
+    ensureCargoAvailableIfNeeded();
+    if (nativeTarget) {
+      runPnpm([
+        "--dir",
+        nativeInputRoot,
+        "exec",
+        "napi",
+        "build",
+        "--platform",
+        "--release",
+        "--target",
+        nativeTarget,
+      ]);
+    } else {
+      runPnpm(["--dir", nativeInputRoot, "build:native:release"]);
+    }
   }
-  runPnpm(["--dir", path.join(packageRoot, "native-input"), "build"]);
+  runPnpm(["--dir", nativeInputRoot, "build"]);
   runPnpm(["--dir", path.join(packageRoot, "shared"), "build"]);
 }
 

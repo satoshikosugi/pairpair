@@ -77,10 +77,10 @@ function reactivateMacApplication(forceReshow = false): void {
   };
 
   if (forceReshow) {
-    app.hide();
+    win.hide();
     setTimeout(() => {
       if (win.isDestroyed()) return;
-      app.show();
+      win.show();
       focusWindow();
     }, 0);
   }

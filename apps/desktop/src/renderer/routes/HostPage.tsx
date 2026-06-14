@@ -12,6 +12,7 @@ import { hostPeerAuthenticator } from "../webrtc/peer-auth";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import type { InputEvent } from "@pairpair/shared";
+import { getRecentSessionActionLabel, getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
@@ -21,6 +22,34 @@ const STATE_LABEL: Record<string, string> = {
   scrolling: "スクロール",
   typing: "タイプ中",
   clicking: "クリック",
+};
+
+const resumeCardStyle: React.CSSProperties = {
+  marginBottom: 24,
+  padding: 18,
+  borderRadius: 14,
+  background: "linear-gradient(180deg, rgba(40,57,92,0.92) 0%, rgba(18,28,48,0.94) 100%)",
+  border: "1px solid rgba(120, 175, 255, 0.24)",
+  boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
+};
+
+const primaryActionButtonStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  background: "#4a9eff",
+  color: "#fff",
+  border: "none",
+  borderRadius: 8,
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const inlineDangerButtonStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  background: "transparent",
+  color: "#ff9e9e",
+  border: "1px solid rgba(255, 120, 120, 0.35)",
+  borderRadius: 8,
+  fontSize: 12,
 };
 
 export function HostPage(): React.ReactElement {
@@ -34,11 +63,12 @@ export function HostPage(): React.ReactElement {
     setSignalingUrl,
     setHostToken,
     setGuestToken,
+    setSelectedSourceId: setSessionSelectedSourceId,
     code,
     expiresAt,
   } = useSessionStore();
   const settings = useSettingsStore();
-  const { pairproProfiles } = settings;
+  const { pairproProfiles, recentSession } = settings;
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<ScreenSource | null>(null);
   const [selectedPreset, setSelectedPreset] = useState<QualityPresetName>(settings.lastHostPreset ?? settings.defaultPreset);
@@ -58,6 +88,139 @@ export function HostPage(): React.ReactElement {
     setSelectedSource(source);
     setSelectedSourceId(source.id);
   }, []);
+
+  const saveRecentHostSession = useCallback(async (stage: "waiting" | "active", token: string, nextGuestDeviceName: string | null = null) => {
+    await settings.setRecentSession({
+      version: 1,
+      role: "host",
+      stage,
+      sessionId: useSessionStore.getState().sessionId ?? "",
+      code: useSessionStore.getState().code ?? "",
+      wsUrl: useSessionStore.getState().signalingUrl ?? SERVER_URL,
+      token,
+      expiresAt: useSessionStore.getState().expiresAt,
+      hostDeviceName: "PairPair Host",
+      guestDeviceName: nextGuestDeviceName,
+      sourceName: selectedSource?.name ?? settings.lastSourceName,
+      sourceDisplayId: selectedSource?.display_id ?? settings.lastSourceDisplayId,
+      requiresPassphrase: passphrase.trim().length > 0,
+      savedAt: Date.now(),
+    });
+  }, [passphrase, selectedSource, settings]);
+
+  const connectExistingHostSession = useCallback(async (params: {
+    sessionId: string;
+    sessionCode: string;
+    hostToken: string;
+    wsUrl: string;
+    expiresAt: string | null;
+  }) => {
+    if (!selectedSourceId) {
+      setError("共有する画面を選択してください");
+      return;
+    }
+
+    setSessionId(params.sessionId);
+    setCode(params.sessionCode);
+    setRole("host");
+    setExpiresAt(params.expiresAt);
+    setSignalingUrl(params.wsUrl);
+    setHostToken(params.hostToken);
+    setGuestToken(null);
+    setSessionSelectedSourceId(selectedSourceId);
+
+    await hostPeerAuthenticator.prepare(params.sessionCode, passphrase.trim());
+
+    if (selectedSource) {
+      void settings.saveToElectron("lastSourceName", selectedSource.name);
+      void settings.saveToElectron("lastSourceDisplayId", selectedSource.display_id);
+    }
+    void settings.saveToElectron("lastHostPreset", selectedPreset);
+    void settings.saveToElectron("lastHostCustomPreset", customPreset);
+    void settings.saveToElectron("lastHostAdaptiveMode", adaptiveMode);
+    void settings.saveToElectron("lastHostAdaptiveBasePreset", adaptiveBasePreset);
+
+    signalingClient.connect(params.wsUrl, params.sessionId, params.hostToken, "host");
+
+    signalingClient.on("guest.joined", (msg) => {
+      const payload = msg.payload as { guestDeviceName?: string };
+      const guestName = payload.guestDeviceName ?? "Guest";
+      setGuestDeviceName(guestName);
+      void saveRecentHostSession("active", params.hostToken, guestName);
+
+      const currentPreset = selectedPreset === "Custom"
+        ? ({ ...customPreset, name: selectedPreset } as QualityPreset)
+        : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
+
+      useSessionStore.getState().setAdaptiveModeActive(adaptiveMode);
+      if (adaptiveMode) {
+        useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
+      }
+
+      const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveBasePreset] : undefined;
+      void createPeerConnectionAsHost()
+        .then(() => {
+          hostPeerAuthenticator.start(
+            () => {
+              markPeerAuthenticated();
+              void startHostScreenShare(selectedSourceId, adaptiveMode ? adaptivePreset : currentPreset)
+                .then(() => {
+                  if (adaptiveMode) enableAdaptive();
+                  navigate("host-session");
+                })
+                .catch((err) => setError(`画面共有開始失敗: ${String(err)}`));
+            },
+            (reason) => {
+              closePeerConnection();
+              setError(`P2P認証に失敗しました: ${reason}`);
+            },
+          );
+          if (adaptiveMode) {
+            useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
+          }
+        })
+        .catch((err) => setError(`P2P認証接続失敗: ${String(err)}`));
+    });
+
+    signalingClient.on("rtc.answer", (msg) => {
+      void import("../webrtc/rtc-client").then(({ handleAnswer }) => {
+        const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
+        return handleAnswer(sdp);
+      }).catch(console.error);
+    });
+
+    signalingClient.on("rtc.ice", (msg) => {
+      void import("../webrtc/rtc-client").then(({ handleIce }) => {
+        const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
+        return handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null);
+      }).catch(console.error);
+    });
+
+    setWaiting(true);
+    await saveRecentHostSession("waiting", params.hostToken);
+  }, [
+    adaptiveBasePreset,
+    adaptiveMode,
+    customPreset,
+    enableAdaptive,
+    navigate,
+    passphrase,
+    selectedPreset,
+    selectedSource,
+    selectedSourceId,
+    setCode,
+    setError,
+    setExpiresAt,
+    setGuestDeviceName,
+    setGuestToken,
+    setHostToken,
+    setRole,
+    setSessionId,
+    setSessionSelectedSourceId,
+    setSignalingUrl,
+    settings,
+    saveRecentHostSession,
+  ]);
 
   useEffect(() => {
     if (!waiting || !expiresAt) return;
@@ -150,82 +313,13 @@ export function HostPage(): React.ReactElement {
         wsUrl: string;
       };
 
-      setSessionId(data.sessionId);
-      setCode(data.code);
-      setRole("host");
-      setExpiresAt(data.expiresAt);
-      setSignalingUrl(data.wsUrl);
-      setHostToken(data.hostToken);
-      setGuestToken(null);
-      await hostPeerAuthenticator.prepare(data.code, passphrase.trim());
-      if (selectedSource) {
-        void settings.saveToElectron("lastSourceName", selectedSource.name);
-        void settings.saveToElectron("lastSourceDisplayId", selectedSource.display_id);
-      }
-      void settings.saveToElectron("lastHostPreset", selectedPreset);
-      void settings.saveToElectron("lastHostCustomPreset", customPreset);
-      void settings.saveToElectron("lastHostAdaptiveMode", adaptiveMode);
-      void settings.saveToElectron("lastHostAdaptiveBasePreset", adaptiveBasePreset);
-
-      signalingClient.connect(data.wsUrl, data.sessionId, data.hostToken, "host");
-
-      signalingClient.on("guest.joined", (msg) => {
-        const payload = msg.payload as { guestDeviceName?: string };
-        const guestName = payload.guestDeviceName ?? "Guest";
-        setGuestDeviceName(guestName);
-
-        // Get the current quality preset to pass to the peer connection
-        const currentPreset = selectedPreset === "Custom"
-          ? ({ ...customPreset, name: selectedPreset } as QualityPreset)
-          : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
-
-        // Store adaptive mode active state in session store so SessionPage can read it
-        useSessionStore.getState().setAdaptiveModeActive(adaptiveMode);
-        // Store the base preset so SessionPage initializes the dropdown correctly
-        if (adaptiveMode) {
-          useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
-        }
-
-        const adaptivePreset = adaptiveMode ? QUALITY_PRESETS[adaptiveBasePreset] : undefined;
-        void createPeerConnectionAsHost()
-          .then(() => {
-            hostPeerAuthenticator.start(
-              () => {
-                markPeerAuthenticated();
-                void startHostScreenShare(selectedSourceId, adaptiveMode ? adaptivePreset : currentPreset)
-                  .then(() => {
-                    if (adaptiveMode) enableAdaptive();
-                    navigate("host-session");
-                  })
-                  .catch((err) => setError(`画面共有開始失敗: ${String(err)}`));
-              },
-              (reason) => {
-                closePeerConnection();
-                setError(`P2P認証に失敗しました: ${reason}`);
-              },
-            );
-            if (adaptiveMode) {
-              useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
-            }
-          })
-          .catch((err) => setError(`P2P認証接続失敗: ${String(err)}`));
+      await connectExistingHostSession({
+        sessionId: data.sessionId,
+        sessionCode: data.code,
+        hostToken: data.hostToken,
+        wsUrl: data.wsUrl,
+        expiresAt: data.expiresAt,
       });
-
-      signalingClient.on("rtc.answer", (msg) => {
-        void import("../webrtc/rtc-client").then(({ handleAnswer }) => {
-          const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
-          return handleAnswer(sdp);
-        }).catch(console.error);
-      });
-
-      signalingClient.on("rtc.ice", (msg) => {
-        void import("../webrtc/rtc-client").then(({ handleIce }) => {
-          const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
-          return handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null);
-        }).catch(console.error);
-      });
-
-      setWaiting(true);
     } catch (err) {
       setError(`セッション作成失敗: ${String(err)}`);
     } finally {
@@ -233,7 +327,31 @@ export function HostPage(): React.ReactElement {
     }
   };
 
+  const handleResumeSession = async () => {
+    if (!isRecentSessionResumable(recentSession) || recentSession.role !== "host") {
+      setError("再開できるホストセッションが見つかりません");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await connectExistingHostSession({
+        sessionId: recentSession.sessionId,
+        sessionCode: recentSession.code,
+        hostToken: recentSession.token,
+        wsUrl: recentSession.wsUrl,
+        expiresAt: recentSession.expiresAt,
+      });
+    } catch (err) {
+      await settings.setRecentSession(null);
+      setError(`セッション再開失敗: ${String(err)}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleCancel = () => {
+    void settings.setRecentSession(null);
     signalingClient.disconnect();
     navigate("home");
   };
@@ -326,6 +444,45 @@ export function HostPage(): React.ReactElement {
   return (
     <div style={{ padding: 24, maxWidth: 600, margin: "0 auto", overflowY: "auto", height: "100%" }}>
       <h2 style={{ marginBottom: 24, color: "#4a9eff" }}>ホストとして開始</h2>
+
+      {isRecentSessionResumable(recentSession) && recentSession.role === "host" && (
+        <div style={resumeCardStyle}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+            <div>
+              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>直前のホストセッション</div>
+              <div style={{ color: "#9cb0c8", fontSize: 13, lineHeight: 1.7 }}>
+                {getRecentSessionSummary(recentSession)}
+                <br />
+                コード: {recentSession.code}
+                {recentSession.requiresPassphrase && (
+                  <>
+                    <br />
+                    あいことば付きセッションです。再開時は下の入力欄に再入力してください。
+                  </>
+                )}
+              </div>
+            </div>
+            <button onClick={() => void settings.setRecentSession(null)} style={inlineDangerButtonStyle}>
+              破棄
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+            <button
+              onClick={() => void handleResumeSession()}
+              disabled={creating || !selectedSourceId}
+              style={{
+                ...primaryActionButtonStyle,
+                opacity: creating || !selectedSourceId ? 0.6 : 1,
+              }}
+            >
+              {creating ? "再開中..." : getRecentSessionActionLabel(recentSession)}
+            </button>
+            <div style={{ color: "#7f8ea8", fontSize: 12, alignSelf: "center" }}>
+              前回と同じ共有先を再選択してください
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: 24 }}>
         <ScreenSourcePicker

@@ -1,11 +1,14 @@
 import React from "react";
 import { useAppStore } from "../store/app-store";
 import { useSessionStore } from "../store/session-store";
+import { useSettingsStore } from "../store/settings-store";
 import { cleanupSession } from "../webrtc/connection-manager";
+import { getRecentSessionActionLabel, isRecentSessionResumable } from "../session-resume";
 
 export function ErrorPage(): React.ReactElement {
   const { navigate, error, setError } = useAppStore();
   const { iceConnectionState, reset } = useSessionStore();
+  const { recentSession } = useSettingsStore();
 
   const isIceFailure = iceConnectionState === "failed" || iceConnectionState === "disconnected";
 
@@ -76,6 +79,21 @@ export function ErrorPage(): React.ReactElement {
       >
         ホーム画面へ戻る
       </button>
+      {isRecentSessionResumable(recentSession) && (
+        <button
+          onClick={() => navigate(recentSession.role === "host" ? "host-setup" : "guest-join")}
+          style={{
+            padding: "10px 28px",
+            background: "transparent",
+            color: "#4a9eff",
+            border: "1px solid #4a9eff",
+            borderRadius: 8,
+            fontSize: 15,
+          }}
+        >
+          {getRecentSessionActionLabel(recentSession)}
+        </button>
+      )}
     </div>
   );
 }

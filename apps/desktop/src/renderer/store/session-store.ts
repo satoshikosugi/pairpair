@@ -5,7 +5,6 @@ export type ControlState = "viewOnly" | "controlRequested" | "controlAllowed" | 
 export type ConnectionState = "idle" | "connecting" | "connected" | "disconnected" | "failed";
 export type SessionRole = "host" | "guest" | null;
 export type ClipboardEntryDirection = "sent" | "received";
-export type ClipboardSyncMode = "manual" | "auto";
 
 export interface ClipboardHistoryEntry {
   id: string;
@@ -40,7 +39,6 @@ interface SessionState {
   permissionPresetId: PermissionPresetId;
   sessionPermissions: SessionPermissions;
   clipboardHistory: ClipboardHistoryEntry[];
-  clipboardSyncMode: ClipboardSyncMode;
 
   setSessionId: (id: string | null) => void;
   setCode: (code: string | null) => void;
@@ -63,7 +61,6 @@ interface SessionState {
   setPermissionPreset: (presetId: PermissionPresetId, permissions?: SessionPermissions) => void;
   addClipboardHistoryEntry: (entry: ClipboardHistoryEntry) => void;
   clearClipboardHistory: () => void;
-  setClipboardSyncMode: (mode: ClipboardSyncMode) => void;
   onSessionEnded: (handler: OnSessionEndedHandler) => void;
   emitSessionEnded: () => void;
   reset: () => void;
@@ -92,7 +89,6 @@ const initialState = {
   permissionPresetId: "fullControl" as PermissionPresetId,
   sessionPermissions: getPermissionPreset("fullControl").permissions,
   clipboardHistory: [] as ClipboardHistoryEntry[],
-  clipboardSyncMode: "manual" as ClipboardSyncMode,
 };
 
 let sessionEndedHandlers: OnSessionEndedHandler[] = [];
@@ -128,7 +124,6 @@ export const useSessionStore = create<SessionState>((set) => ({
     clipboardHistory: [entry, ...state.clipboardHistory].slice(0, 10),
   })),
   clearClipboardHistory: () => set({ clipboardHistory: [] }),
-  setClipboardSyncMode: (mode) => set({ clipboardSyncMode: mode }),
   onSessionEnded: (handler) => {
     sessionEndedHandlers.push(handler);
   },

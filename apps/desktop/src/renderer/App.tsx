@@ -8,10 +8,13 @@ import { SessionPage } from "./routes/SessionPage";
 import { SettingsPage } from "./routes/SettingsPage";
 import { ErrorPage } from "./routes/ErrorPage";
 import { Toast } from "./components/Toast";
+import { useSettingsStore } from "./store/settings-store";
+import { isRecentSessionResumable } from "./session-resume";
 
 export default function App(): React.ReactElement {
   const { currentRoute, navigate, error, setError } = useAppStore();
   const { onSessionEnded, reset } = useSessionStore();
+  const { recentSession } = useSettingsStore();
   const [sessionEndedMessage, setSessionEndedMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,11 +22,15 @@ export default function App(): React.ReactElement {
       if (useSessionStore.getState().roleSwitchInProgress) {
         return;
       }
-      setSessionEndedMessage("接続が切断されました");
+      setSessionEndedMessage(
+        isRecentSessionResumable(recentSession)
+          ? "接続が切断されました。ホームの「直前のセッション」から再参加できます"
+          : "接続が切断されました",
+      );
       reset();
       navigate("home");
     });
-  }, [navigate, onSessionEnded, reset]);
+  }, [navigate, onSessionEnded, recentSession, reset]);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>

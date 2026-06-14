@@ -131,9 +131,8 @@ export function SessionPage(): React.ReactElement {
     adaptiveBasePreset,
     sessionPermissions,
     clipboardHistory,
-    clipboardSyncMode,
   } = useSessionStore();
-  const { pairproProfiles, wheelDirection, saveToElectron } = useSettingsStore();
+  const { pairproProfiles, wheelDirection, saveToElectron, lastSourceName, lastSourceDisplayId, recentSession, setRecentSession } = useSettingsStore();
 
   const [stats, setStats] = useState<WebRTCStats>({});
   const [showStats, setShowStats] = useState(false);
@@ -186,9 +185,6 @@ export function SessionPage(): React.ReactElement {
   const fullscreenRequestPendingRef = useRef(false);
   const fullscreenRequestTimerRef = useRef<number | null>(null);
   const spotlightTimerRef = useRef<number | null>(null);
-  const clipboardPollTimerRef = useRef<number | null>(null);
-  const lastClipboardTextRef = useRef<string | null>(null);
-  const lastAppliedRemoteClipboardRef = useRef<string | null>(null);
 
   const STATE_LABEL: Record<string, string> = {
     idle: "アイドル",
@@ -282,18 +278,21 @@ export function SessionPage(): React.ReactElement {
     setAdaptiveState("idle");
   }, [customPreset, selectedPreset]);
 
-  const finalizeSession = useCallback(() => {
+  const finalizeSession = useCallback((options?: { clearRecentSession?: boolean }) => {
+    if (options?.clearRecentSession) {
+      void setRecentSession(null);
+    }
     signalingClient.disconnect();
     closePeerConnection();
     void window.pairpair.hideHostOverlay().catch(console.error);
     void window.pairpair.setGuestFullscreen(false).catch(() => undefined);
     useSessionStore.getState().reset();
     navigate("home");
-  }, [navigate]);
+  }, [navigate, setRecentSession]);
 
   const handleDisconnect = useCallback(() => {
     signalingClient.send({ type: "session.close", payload: { reason: isHost ? "host_closed" : "guest_disconnected" } });
-    finalizeSession();
+    finalizeSession({ clearRecentSession: true });
   }, [finalizeSession, isHost]);
 
   const handleGuestDisconnected = useCallback(() => {
@@ -319,6 +318,43 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setGuestDeviceName(null);
     finalizeSession();
   }, [finalizeSession, syncHostOverlay]);
+
+  useEffect(() => {
+    if (!sessionId || !code || !role || roleSwitchInProgress) return;
+    const token = role === "host" ? hostToken : guestToken;
+    if (!token) return;
+
+    void setRecentSession({
+      version: 1,
+      role,
+      stage: role === "host" && !guestDeviceName ? "waiting" : "active",
+      sessionId,
+      code,
+      wsUrl: signalingUrl ?? "",
+      token,
+      expiresAt: role === "host" ? useSessionStore.getState().expiresAt : null,
+      hostDeviceName: role === "host" ? "PairPair Host" : hostDeviceName,
+      guestDeviceName,
+      sourceName: lastSourceName,
+      sourceDisplayId: lastSourceDisplayId,
+      requiresPassphrase: recentSession?.sessionId === sessionId ? recentSession.requiresPassphrase : false,
+      savedAt: Date.now(),
+    });
+  }, [
+    code,
+    guestDeviceName,
+    guestToken,
+    hostDeviceName,
+    hostToken,
+    lastSourceDisplayId,
+    lastSourceName,
+    recentSession,
+    role,
+    roleSwitchInProgress,
+    sessionId,
+    setRecentSession,
+    signalingUrl,
+  ]);
 
   const handleReleaseControl = useCallback(() => {
     if (useSessionStore.getState().controlState !== "controlAllowed") return;
@@ -505,6 +541,9 @@ export function SessionPage(): React.ReactElement {
     useSessionStore.getState().setConnectionState("connecting");
     useSessionStore.getState().setHostToken(nextHostToken);
     useSessionStore.getState().setGuestToken(guestToken);
+    useSessionStore.getState().setSelectedSourceId(source.id);
+    void saveToElectron("lastSourceName", source.name);
+    void saveToElectron("lastSourceDisplayId", source.display_id);
 
     await signalingClient.rebindRole(nextHostToken, "host");
     signalingClient.on("session.close", (message) => {
@@ -720,7 +759,6 @@ export function SessionPage(): React.ReactElement {
   const shareClipboardText = useCallback((text: string) => {
     if (!text || !sessionPermissions.clipboard) return;
     const timestamp = Date.now();
-    lastClipboardTextRef.current = text;
     dataChannelManager.sendControl({
       type: "clipboard.snippet",
       text,
@@ -746,8 +784,6 @@ export function SessionPage(): React.ReactElement {
   }, [adaptiveMode, isHost, sessionPermissions.clipboard, shareClipboardText]);
 
   const receiveClipboardText = useCallback((text: string) => {
-    lastClipboardTextRef.current = text;
-    lastAppliedRemoteClipboardRef.current = text;
     void navigator.clipboard.writeText(text).catch(console.error);
   }, []);
 
@@ -1173,39 +1209,6 @@ export function SessionPage(): React.ReactElement {
   }, [isHost, pasteClipboardText, sessionPermissions.clipboard]);
 
   useEffect(() => {
-    if (!sessionPermissions.clipboard || clipboardSyncMode !== "auto") {
-      if (clipboardPollTimerRef.current !== null) {
-        window.clearInterval(clipboardPollTimerRef.current);
-        clipboardPollTimerRef.current = null;
-      }
-      return;
-    }
-
-    const pollClipboard = () => {
-      void navigator.clipboard.readText().then((text) => {
-        if (!text.trim()) return;
-        if (text === lastClipboardTextRef.current) return;
-        lastClipboardTextRef.current = text;
-        if (text === lastAppliedRemoteClipboardRef.current) {
-          lastAppliedRemoteClipboardRef.current = null;
-          return;
-        }
-        shareClipboardText(text);
-      }).catch(() => undefined);
-    };
-
-    pollClipboard();
-    clipboardPollTimerRef.current = window.setInterval(pollClipboard, 1000);
-
-    return () => {
-      if (clipboardPollTimerRef.current !== null) {
-        window.clearInterval(clipboardPollTimerRef.current);
-        clipboardPollTimerRef.current = null;
-      }
-    };
-  }, [clipboardSyncMode, sessionPermissions.clipboard, shareClipboardText]);
-
-  useEffect(() => {
     const handler = (message: ControlMessage) => {
       switch (message.type) {
         case "annotation.stroke.begin": {
@@ -1263,9 +1266,6 @@ export function SessionPage(): React.ReactElement {
             peerRole: message.senderRole,
             timestamp: message.timestamp,
           });
-          if (useSessionStore.getState().clipboardSyncMode === "auto") {
-            receiveClipboardText(message.text);
-          }
           break;
         }
         case "permission.profile.updated": {

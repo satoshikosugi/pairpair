@@ -19,6 +19,7 @@ const store = new Store({
     lastHostCustomPreset: {},
     lastHostAdaptiveMode: false,
     lastHostAdaptiveBasePreset: "Balanced",
+    recentSession: null,
   },
 });
 

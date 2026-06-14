@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { QualityPresetName, PairProActivityState, PairProProfile } from "@pairpair/shared";
 import { PAIRPRO_DEFAULT_PROFILES } from "@pairpair/shared";
+import type { RecentSessionSnapshot } from "../session-resume";
 
 interface SettingsState {
   defaultPreset: QualityPresetName;
@@ -19,6 +20,7 @@ interface SettingsState {
   lastHostCustomPreset: Record<string, unknown>;
   lastHostAdaptiveMode: boolean;
   lastHostAdaptiveBasePreset: QualityPresetName;
+  recentSession: RecentSessionSnapshot | null;
   pairproProfiles: Record<PairProActivityState, PairProProfile>;
   loaded: boolean;
 
@@ -29,6 +31,7 @@ interface SettingsState {
   setAdaptiveModeEnabled: (enabled: boolean) => void;
   setPairproProfile: (state: PairProActivityState, profile: PairProProfile) => void;
   resetPairproProfiles: () => void;
+  setRecentSession: (snapshot: RecentSessionSnapshot | null) => Promise<void>;
   loadFromElectron: () => Promise<void>;
   saveToElectron: (key: string, value: unknown) => Promise<void>;
 }
@@ -50,6 +53,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   lastHostCustomPreset: {},
   lastHostAdaptiveMode: false,
   lastHostAdaptiveBasePreset: "Balanced",
+  recentSession: null,
   pairproProfiles: { ...PAIRPRO_DEFAULT_PROFILES },
   loaded: false,
 
@@ -69,6 +73,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     const defaults = { ...PAIRPRO_DEFAULT_PROFILES };
     void window.pairpair.setSettings("pairproProfiles", defaults);
     set({ pairproProfiles: defaults });
+  },
+  setRecentSession: async (snapshot) => {
+    set({ recentSession: snapshot });
+    await window.pairpair.setSettings("recentSession", snapshot);
   },
 
   loadFromElectron: async () => {
@@ -91,6 +99,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         lastHostCustomPreset: (settings.lastHostCustomPreset as Record<string, unknown>) ?? {},
         lastHostAdaptiveMode: (settings.lastHostAdaptiveMode as boolean) ?? false,
         lastHostAdaptiveBasePreset: (settings.lastHostAdaptiveBasePreset as QualityPresetName) ?? "Balanced",
+        recentSession: (settings.recentSession as RecentSessionSnapshot | null) ?? null,
         pairproProfiles: (() => {
           const raw = settings.pairproProfiles as Record<string, Record<string, unknown>> | undefined;
           if (raw && typeof raw === "object") {

@@ -57,6 +57,9 @@ const ROLE_SWITCH_READY_RETRY_MS = 250;
 const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 const ROLE_SWITCH_COMPLETION_TIMEOUT_MS = 15000;
 const SPOTLIGHT_DURATION_MS = 3000;
+const IME_JAPANESE_KEYS = new Set(["Lang1", "Kana", "KanaMode", "かな", "ひらがな", "あいう"]);
+const IME_LATIN_KEYS = new Set(["Lang2", "Eisu", "Eisuu", "英数", "ABC"]);
+const IME_TOGGLE_KEYS = new Set(["KanjiMode", "Hankaku", "Zenkaku", "ZenkakuHankaku"]);
 
 function getToolboxBounds(
   panelWidth: number,
@@ -94,18 +97,28 @@ function getToolboxBounds(
   };
 }
 
-function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
-  if (event.code === "Lang1") return { type: "ime.mode", mode: "japanese" };
-  if (event.code === "Lang2") return { type: "ime.mode", mode: "latin" };
+export function getImeModeEvent(
+  event: Pick<KeyboardEvent, "code" | "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">,
+): ImeModeEvent | null {
+  if (IME_JAPANESE_KEYS.has(event.code) || IME_JAPANESE_KEYS.has(event.key)) {
+    return { type: "ime.mode", mode: "japanese" };
+  }
 
-  const toggleKeys = new Set([
-    "KanjiMode",
-    "Hankaku",
-    "Zenkaku",
-    "ZenkakuHankaku",
-    "KanaMode",
-  ]);
-  if (toggleKeys.has(event.key)) {
+  if (IME_LATIN_KEYS.has(event.code) || IME_LATIN_KEYS.has(event.key)) {
+    return { type: "ime.mode", mode: "latin" };
+  }
+
+  if (IME_TOGGLE_KEYS.has(event.code) || IME_TOGGLE_KEYS.has(event.key)) {
+    return { type: "ime.mode", mode: "toggle" };
+  }
+
+  if (
+    event.code === "Space"
+    && event.key === " "
+    && event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+  ) {
     return { type: "ime.mode", mode: "toggle" };
   }
 

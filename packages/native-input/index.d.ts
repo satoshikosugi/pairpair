@@ -39,3 +39,7 @@ export declare function getCurrentImeMode(): string
  * Windows 以外では何もしない。
  */
 export declare function setImeMode(open: boolean): void
+/** Windows IMM32 API を使って、指定ウィンドウの IME を直接 ON/OFF する。 */
+export declare function setImeModeForWindow(windowId: string, open: boolean): void
+export declare const DOM_KEY_TO_VK: Record<string, number>
+export declare const DOM_KEY_TO_MAC_KEYCODE: Record<string, number>

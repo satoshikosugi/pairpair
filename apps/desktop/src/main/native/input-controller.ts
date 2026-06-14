@@ -68,7 +68,7 @@ function getNativeModuleCandidates(): string[] {
 
   try {
     const packageEntry = require.resolve("@pairpair/native-input");
-    const packageRoot = path.dirname(path.dirname(packageEntry));
+    const packageRoot = path.dirname(packageEntry);
     for (const overrideName of overrideNames) {
       candidates.add(path.join(packageRoot, overrideName));
     }

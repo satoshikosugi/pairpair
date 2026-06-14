@@ -21,6 +21,7 @@ declare global {
       setSettings: (key: string, value: unknown) => Promise<boolean>;
       getAllSettings: () => Promise<Record<string, unknown>>;
       injectInput: (event: InputEvent) => Promise<boolean>;
+      getMacInputSourceMode: () => Promise<"japanese" | "latin" | null>;
       registerShortcuts: (isHost: boolean) => Promise<void>;
       unregisterShortcuts: () => Promise<void>;
       setSessionRole: (role: "host" | "guest" | null) => Promise<boolean>;

@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("pairpair", {
 
   // Input injection
   injectInput: (event: InputEvent) => ipcRenderer.invoke("input:inject", event),
+  getMacInputSourceMode: () => ipcRenderer.invoke("input:getMacInputSourceMode"),
 
   // Session shortcuts
   registerShortcuts: (isHost: boolean) => ipcRenderer.invoke("session:registerShortcuts", isHost),
@@ -103,6 +104,7 @@ declare global {
       setSettings: (key: string, value: unknown) => Promise<boolean>;
       getAllSettings: () => Promise<Record<string, unknown>>;
       injectInput: (event: InputEvent) => Promise<boolean>;
+      getMacInputSourceMode: () => Promise<"japanese" | "latin" | null>;
       registerShortcuts: (isHost: boolean) => Promise<void>;
       unregisterShortcuts: () => Promise<void>;
       setSessionRole: (role: "host" | "guest" | null) => Promise<boolean>;

@@ -57,6 +57,7 @@ const ROLE_SWITCH_READY_RETRY_MS = 250;
 const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 const ROLE_SWITCH_COMPLETION_TIMEOUT_MS = 15000;
 const SPOTLIGHT_DURATION_MS = 3000;
+const MAC_INPUT_SOURCE_POLL_MS = 700;
 const IME_JAPANESE_KEYS = new Set(["Lang1", "Kana", "KanaMode", "かな", "ひらがな", "あいう"]);
 const IME_LATIN_KEYS = new Set(["Lang2", "Eisu", "Eisuu", "英数", "ABC"]);
 const IME_TOGGLE_KEYS = new Set(["KanjiMode", "Hankaku", "Zenkaku", "ZenkakuHankaku"]);
@@ -183,6 +184,7 @@ export function SessionPage(): React.ReactElement {
   const hoverHideTimerRef = useRef<number | null>(null);
   const fullscreenHintTimerRef = useRef<number | null>(null);
   const toolboxIdleTimerRef = useRef<number | null>(null);
+  const lastMacInputSourceModeRef = useRef<"japanese" | "latin" | null>(null);
   const lastEscapeAtRef = useRef(0);
   const activeStrokeRef = useRef<string | null>(null);
   const annotationsRef = useRef<AnnotationStroke[]>([]);
@@ -1509,6 +1511,50 @@ export function SessionPage(): React.ReactElement {
       document.removeEventListener("keyup", handleKeyUp, { capture: true });
     };
   }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled, sessionPermissions.clipboard, sessionPermissions.keyboard]);
+
+  useEffect(() => {
+    if (window.pairpair.platform !== "darwin" || isHost || !sessionPermissions.keyboard) {
+      lastMacInputSourceModeRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const pollMacInputSource = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const mode = await window.pairpair.getMacInputSourceMode();
+        if (cancelled || mode === null) return;
+
+        const previousMode = lastMacInputSourceModeRef.current;
+        lastMacInputSourceModeRef.current = mode;
+
+        if (previousMode && previousMode !== mode && controlState === "controlAllowed") {
+          const event: ImeModeEvent = { type: "ime.mode", mode };
+          if (adaptiveMode) {
+            adaptiveQualityController.onInputEvent(event);
+          }
+          dataChannelManager.sendInput(event);
+        }
+      } catch (error) {
+        console.error("Failed to poll macOS input source", error);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void pollMacInputSource();
+    const intervalId = window.setInterval(() => {
+      void pollMacInputSource();
+    }, MAC_INPUT_SOURCE_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [adaptiveMode, controlState, isHost, sessionPermissions.keyboard]);
 
   if (isHost) {
     return (

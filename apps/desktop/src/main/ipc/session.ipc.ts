@@ -3,6 +3,7 @@ import log from "electron-log";
 import { getMainWindow, sendToRenderer } from "../window";
 import { refreshApplicationMenu, setupApplicationMenu } from "../menu";
 import { getCurrentImeMode } from "../native/input-controller";
+import { setCurrentSessionRole } from "../session-role-state";
 
 // ---- macOS ゲスト用 TIS (Text Input Sources) IME ポーリングモニター ----
 //
@@ -122,6 +123,7 @@ export function setupSessionIpc(): void {
 
   ipcMain.handle("session:setRole", (event, role: "host" | "guest" | null) => {
     log.info(`[Menu] session:setRole IPC received: role=${String(role)}, platform=${process.platform}`);
+    setCurrentSessionRole(role);
     setupApplicationMenu(role);
     // macOS: ロール設定時に PairPair をアクティブアプリとして再確定させる。
     // 役割切替直後は BrowserWindow.focus() だけでは OS メニューが別アプリのまま残ることがある。

@@ -35,6 +35,7 @@ export declare function getCurrentImeMode(): string
 /**
  * Windows IMM32 API (ImmSetOpenStatus) を使って IME を直接 ON/OFF する。
  * `open=true` で日本語入力 ON、`open=false` で英数入力 (IME OFF)。
+ * フォアグラウンドウィンドウの IME コンテキストに対して動作する。
  * Windows 以外では何もしない。
  */
 export declare function setImeMode(open: boolean): void

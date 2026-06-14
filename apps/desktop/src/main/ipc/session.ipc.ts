@@ -1,7 +1,7 @@
 import { app, ipcMain, globalShortcut } from "electron";
 import log from "electron-log";
 import { getMainWindow, sendToRenderer } from "../window";
-import { setupApplicationMenu } from "../menu";
+import { refreshApplicationMenu, setupApplicationMenu } from "../menu";
 import { getCurrentImeMode } from "../native/input-controller";
 
 // ---- macOS ゲスト用 TIS (Text Input Sources) IME ポーリングモニター ----
@@ -59,7 +59,7 @@ function stopImeMonitor(): void {
   log.info("[IME] Stopped TIS polling monitor");
 }
 
-function reactivateMacApplication(): void {
+function reactivateMacApplication(forceReshow = false): void {
   if (process.platform !== "darwin") return;
 
   const win = getMainWindow();
@@ -71,12 +71,24 @@ function reactivateMacApplication(): void {
       win.show();
     }
     app.focus({ steal: true });
+    win.moveTop();
     win.focus();
+    refreshApplicationMenu();
   };
+
+  if (forceReshow) {
+    app.hide();
+    setTimeout(() => {
+      if (win.isDestroyed()) return;
+      app.show();
+      focusWindow();
+    }, 0);
+  }
 
   focusWindow();
   setTimeout(focusWindow, 0);
   setTimeout(focusWindow, 180);
+  setTimeout(focusWindow, 360);
 }
 
 export function setupSessionIpc(): void {
@@ -127,7 +139,7 @@ export function setupSessionIpc(): void {
     // macOS: ロール設定時に PairPair をアクティブアプリとして再確定させる。
     // 役割切替直後は BrowserWindow.focus() だけでは OS メニューが別アプリのまま残ることがある。
     if (role !== null) {
-      reactivateMacApplication();
+      reactivateMacApplication(true);
     }
     if (role === "guest" && process.platform === "darwin") {
       startImeMonitor(event.sender.id);

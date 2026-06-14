@@ -17,6 +17,8 @@ import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { bindRemoteVideoElement } from "../webrtc/rtc-client";
 
 const MOUSE_MOVE_INTERVAL_MS = 16;
+const REMOTE_CURSOR_SIZE_PX = 46;
+const REMOTE_CURSOR_LINE_PX = 4;
 
 interface RemoteVideoViewProps {
   stream?: MediaStream;
@@ -420,8 +422,8 @@ export function RemoteVideoView({
               position: "absolute",
               left: `${remoteCursor.x * 100}%`,
               top: `${remoteCursor.y * 100}%`,
-              width: 30,
-              height: 30,
+              width: REMOTE_CURSOR_SIZE_PX,
+              height: REMOTE_CURSOR_SIZE_PX,
               transform: "translate(-50%, -50%)",
               pointerEvents: "none",
             }}
@@ -431,11 +433,11 @@ export function RemoteVideoView({
                 position: "absolute",
                 left: "50%",
                 top: 0,
-                width: 3,
+                width: REMOTE_CURSOR_LINE_PX,
                 height: "100%",
                 transform: "translateX(-50%)",
                 background: "#fff",
-                boxShadow: "0 0 0 1px rgba(0,0,0,0.65)",
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.7)",
               }}
             />
             <div
@@ -444,10 +446,19 @@ export function RemoteVideoView({
                 top: "50%",
                 left: 0,
                 width: "100%",
-                height: 3,
+                height: REMOTE_CURSOR_LINE_PX,
                 transform: "translateY(-50%)",
                 background: "#fff",
-                boxShadow: "0 0 0 1px rgba(0,0,0,0.65)",
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.7)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 10,
+                borderRadius: "50%",
+                border: "3px solid rgba(255, 87, 34, 0.95)",
+                boxShadow: "0 0 22px rgba(255, 87, 34, 0.75)",
               }}
             />
           </div>

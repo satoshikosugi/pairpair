@@ -3,6 +3,8 @@ import type { HostOverlayState } from "@pairpair/shared";
 
 let overlayWindow: BrowserWindow | null = null;
 let overlayBounds: Rectangle | null = null;
+const REMOTE_CURSOR_SIZE_PX = 46;
+const REMOTE_CURSOR_LINE_PX = 4;
 
 const OVERLAY_HTML = `<!DOCTYPE html>
 <html>
@@ -27,8 +29,8 @@ const OVERLAY_HTML = `<!DOCTYPE html>
       }
       .cursor, .spotlight {
         position: absolute;
-        width: 32px;
-        height: 32px;
+        width: ${REMOTE_CURSOR_SIZE_PX}px;
+        height: ${REMOTE_CURSOR_SIZE_PX}px;
         transform: translate(-50%, -50%);
         pointer-events: none;
         display: none;
@@ -44,7 +46,7 @@ const OVERLAY_HTML = `<!DOCTYPE html>
       .cursor::before {
         left: 50%;
         top: 0;
-        width: 3px;
+        width: ${REMOTE_CURSOR_LINE_PX}px;
         height: 100%;
         transform: translateX(-50%);
       }
@@ -52,15 +54,15 @@ const OVERLAY_HTML = `<!DOCTYPE html>
         top: 50%;
         left: 0;
         width: 100%;
-        height: 3px;
+        height: ${REMOTE_CURSOR_LINE_PX}px;
         transform: translateY(-50%);
       }
       .cursor .ring {
         position: absolute;
-        inset: 7px;
-        border: 2px solid rgba(255, 87, 34, 0.95);
+        inset: 10px;
+        border: 3px solid rgba(255, 87, 34, 0.95);
         border-radius: 999px;
-        box-shadow: 0 0 18px rgba(255, 87, 34, 0.7);
+        box-shadow: 0 0 22px rgba(255, 87, 34, 0.75);
       }
       .spotlight {
         width: 112px;

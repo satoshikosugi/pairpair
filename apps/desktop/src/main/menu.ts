@@ -5,6 +5,7 @@ import { sendToRenderer } from "./window";
 
 type HelpGuideKind = "host" | "guest";
 type MenuRole = "host" | "guest" | null;
+let currentMenuRole: MenuRole = null;
 
 const GUIDE_TITLES: Record<HelpGuideKind, string> = {
   host: "ホストの使い方",
@@ -229,6 +230,7 @@ function openMainWindowDevTools(): void {
 }
 
 export function setupApplicationMenu(role: MenuRole = null): void {
+  currentMenuRole = role;
   log.info(`[Menu] setupApplicationMenu called: role=${String(role)}`);
   const helpSubmenu: MenuItemConstructorOptions[] = [
     {
@@ -305,4 +307,8 @@ export function setupApplicationMenu(role: MenuRole = null): void {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   log.info(`[Menu] Application menu set: items=[${template.map((t) => String(t.label)).join(", ")}]`);
+}
+
+export function refreshApplicationMenu(): void {
+  setupApplicationMenu(currentMenuRole);
 }

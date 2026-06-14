@@ -1,4 +1,4 @@
-import { ipcMain, globalShortcut } from "electron";
+import { app, ipcMain, globalShortcut } from "electron";
 import log from "electron-log";
 import { getMainWindow, sendToRenderer } from "../window";
 import { setupApplicationMenu } from "../menu";
@@ -59,6 +59,26 @@ function stopImeMonitor(): void {
   log.info("[IME] Stopped TIS polling monitor");
 }
 
+function reactivateMacApplication(): void {
+  if (process.platform !== "darwin") return;
+
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+
+  const focusWindow = () => {
+    if (win.isDestroyed()) return;
+    if (!win.isVisible()) {
+      win.show();
+    }
+    app.focus({ steal: true });
+    win.focus();
+  };
+
+  focusWindow();
+  setTimeout(focusWindow, 0);
+  setTimeout(focusWindow, 180);
+}
+
 export function setupSessionIpc(): void {
   ipcMain.handle("session:registerShortcuts", (_event, isHost: boolean) => {
     if (!isHost) return;
@@ -105,12 +125,9 @@ export function setupSessionIpc(): void {
     log.info(`[Menu] session:setRole IPC received: role=${String(role)}, platform=${process.platform}`);
     setupApplicationMenu(role);
     // macOS: ロール設定時に PairPair をアクティブアプリとして再確定させる。
-    // フルスクリーン解除後や役割切替後に別アプリのメニューが表示されてしまう問題を防ぐ。
-    if (process.platform === "darwin" && role !== null) {
-      const win = getMainWindow();
-      if (win && !win.isDestroyed()) {
-        win.focus();
-      }
+    // 役割切替直後は BrowserWindow.focus() だけでは OS メニューが別アプリのまま残ることがある。
+    if (role !== null) {
+      reactivateMacApplication();
     }
     if (role === "guest" && process.platform === "darwin") {
       startImeMonitor(event.sender.id);
@@ -160,8 +177,8 @@ export function setupSessionIpc(): void {
     // macOS: フルスクリーン解除後に PairPair をアクティブアプリとして再確定させる。
     // setFullScreen(false) のアニメーション完了後に他のアプリがアクティブになり、
     // PairPair にフォーカスがあっても別アプリのメニューが表示される問題を防ぐ。
-    if (!fullscreen && process.platform === "darwin") {
-      win.focus();
+    if (!fullscreen) {
+      reactivateMacApplication();
     }
     sendToRenderer("session:fullscreen-changed", actualFullscreen ? fullscreen : win.isFullScreen());
     return actualFullscreen;

@@ -3,7 +3,7 @@ import path from "path";
 import { setupIpcHandlers } from "./ipc";
 import { getSelectedSourceId } from "./ipc/screen.ipc";
 import log from "electron-log";
-import { setupApplicationMenu } from "./menu";
+import { refreshApplicationMenu, setupApplicationMenu } from "./menu";
 import { setMainWindow } from "./window";
 
 // Hardware encoding flags (must be set before app.ready)
@@ -36,6 +36,12 @@ function createMainWindow(): BrowserWindow {
   });
 
   setMainWindow(win);
+
+  win.on("focus", () => {
+    if (process.platform === "darwin") {
+      refreshApplicationMenu();
+    }
+  });
 
   win.on("enter-full-screen", () => {
     win.webContents.send("session:fullscreen-changed", true);
@@ -89,6 +95,9 @@ app.whenReady().then(() => {
   mainWindow = createMainWindow();
 
   app.on("activate", () => {
+    if (process.platform === "darwin") {
+      refreshApplicationMenu();
+    }
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();
     }

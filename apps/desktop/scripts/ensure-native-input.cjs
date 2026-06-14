@@ -63,8 +63,10 @@ if (binaryName) {
   const needsNativeBuild = !hasBinary || newestRustInput > binaryMtime;
 
   if (needsNativeBuild) {
-    console.log(`[PairPair] Native input binary ${hasBinary ? "stale" : "missing"}; building ${binaryName}`);
-    const result = runPnpm("build:native");
+    // PAIRPAIR_NATIVE_RELEASE=1 の場合はリリースビルド（パッケージング用）
+    const buildScript = process.env.PAIRPAIR_NATIVE_RELEASE === "1" ? "build:native:release" : "build:native";
+    console.log(`[PairPair] Native input binary ${hasBinary ? "stale" : "missing"}; building ${binaryName} (${buildScript})`);
+    const result = runPnpm(buildScript);
     if (result.status !== 0) {
       if (!hasBinary) {
         process.exit(result.status ?? 1);

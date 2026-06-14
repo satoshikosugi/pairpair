@@ -407,11 +407,11 @@
 
 ### 4-5. packages/native-input — macOS 入力注入（Mac ビルド環境で実施）
 
-- [ ] `CGEventCreateMouseEvent` でマウスイベント注入
-- [ ] `CGEventPost(kCGHIDEventTap, event)` で投稿
-- [ ] `CGEventCreateKeyboardEvent` でキーイベント注入
-- [ ] `AXIsProcessTrustedWithOptions` でアクセシビリティ権限確認
-- [ ] macOS キーコード変換テーブル実装
+- [x] `CGEventCreateMouseEvent` でマウスイベント注入（`core_graphics::event::CGEvent::new_mouse_event`）
+- [x] `CGEventPost(kCGHIDEventTap, event)` で投稿（`event.post(CGEventTapLocation::HID)`）
+- [x] `CGEventCreateKeyboardEvent` でキーイベント注入（`CGEvent::new_keyboard_event`）
+- [x] `AXIsProcessTrustedWithOptions` でアクセシビリティ権限確認（`systemPreferences.isTrustedAccessibilityClient(false)` 経由）
+- [x] macOS キーコード変換テーブル実装（`DOM_KEY_TO_MAC_KEYCODE` in `packages/native-input/src/index.ts`）
 
 ### 4-6. 動作確認
 
@@ -506,10 +506,12 @@
 - [x] napi-rs のビルド成果物（`.node` ファイル）を `extraResources` に含める
 - [x] `electron-rebuild` を package 前に実行するスクリプト設定
 - [x] コードサイニング設定（Mac: `hardened-runtime`, `entitlements`）
-- [x] macOS Entitlements ファイル作成
+- [x] macOS Entitlements ファイル作成（`apps/desktop/build/entitlements.mac.plist`）
   ```xml
   <key>com.apple.security.cs.allow-jit</key>
-  <key>com.apple.security.device.audio-input</key>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <key>com.apple.security.automation.apple-events</key>
   ```
 
 ### 5-10. E2E テスト（Playwright）

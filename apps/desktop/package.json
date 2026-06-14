@@ -11,11 +11,11 @@
     "start": "electron-vite preview",
     "lint": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "package": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml",
+    "package": "node ./scripts/ensure-electron-install.cjs && PAIRPAIR_NATIVE_RELEASE=1 node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml",
     "package:win": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --win nsis",
-    "package:mac": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip",
-    "package:mac:x64": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip --x64",
-    "package:mac:arm64": "node ./scripts/ensure-electron-install.cjs && node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip --arm64"
+    "package:mac": "node ./scripts/ensure-electron-install.cjs && PAIRPAIR_NATIVE_RELEASE=1 node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip",
+    "package:mac:x64": "node ./scripts/ensure-electron-install.cjs && PAIRPAIR_NATIVE_RELEASE=1 node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip --x64",
+    "package:mac:arm64": "node ./scripts/ensure-electron-install.cjs && PAIRPAIR_NATIVE_RELEASE=1 node ./scripts/ensure-native-input.cjs && electron-vite build && electron-builder --config electron-builder.yml --mac dmg zip --arm64"
   },
   "dependencies": {
     "@cloudflare/opaque-ts": "0.7.5",

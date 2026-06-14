@@ -252,9 +252,8 @@ function deployDesktopApp() {
     "--prod",
     "deploy",
     "--legacy",
-    deployTempRoot,
+    appStageRoot,
   ]);
-  fs.renameSync(deployTempRoot, appStageRoot);
 }
 
 function removePath(targetPath) {

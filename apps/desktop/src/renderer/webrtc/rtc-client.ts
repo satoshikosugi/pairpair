@@ -426,6 +426,9 @@ export async function switchScreenSource(sourceId: string): Promise<void> {
   }
 
   try {
+    // Keep main-process input injection aligned with the newly shared display/window.
+    await window.pairpair.setSelectedSource(sourceId);
+
     // Get new stream from the specified source
     const newStream = await navigator.mediaDevices.getUserMedia({
       video: {

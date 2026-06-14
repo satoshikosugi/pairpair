@@ -108,6 +108,56 @@ export function HostPage(): React.ReactElement {
     });
   }, [passphrase, selectedSource, settings]);
 
+  useEffect(() => {
+    if (!waiting || !expiresAt) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [waiting, expiresAt]);
+
+  // Sync adaptive state label every 500ms when adaptive mode is on
+  useEffect(() => {
+    if (!adaptiveMode) return;
+    const timer = setInterval(() => setAdaptiveState(adaptiveQualityController.state), 500);
+    return () => clearInterval(timer);
+  }, [adaptiveMode]);
+
+  const enableAdaptive = useCallback(() => {
+    // Resolution was already set in createPeerConnectionAsHost — only register handler + start controller
+    useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
+
+    const handler = (event: InputEvent) => adaptiveQualityController.onInputEvent(event);
+    adaptiveInputHandlerRef.current = handler;
+    dataChannelManager.onInput(handler);
+    // Use the ACTUAL captured stream resolution (not the preset dimensions).
+    // The screen may be portrait or a different resolution than the preset.
+    const actual = getLocalStreamResolution();
+    adaptiveQualityController.enable(
+      pairproProfiles,
+      (fps, bitrateMbps) => { void setAdaptiveParameters(fps, bitrateMbps); },
+      actual?.width  ?? QUALITY_PRESETS[adaptiveBasePreset].width,
+      actual?.height ?? QUALITY_PRESETS[adaptiveBasePreset].height,
+    );
+    setAdaptiveMode(true);
+  }, [pairproProfiles, adaptiveBasePreset]);
+
+  const disableAdaptive = useCallback(() => {
+    adaptiveQualityController.disable();
+    if (adaptiveInputHandlerRef.current) {
+      dataChannelManager.offInput(adaptiveInputHandlerRef.current);
+      adaptiveInputHandlerRef.current = null;
+    }
+    setAdaptiveMode(false);
+    // Restore the current quality preset
+    const preset = selectedPreset === "Custom"
+      ? ({ ...customPreset, name: "Custom" } as QualityPreset)
+      : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
+    void applyQualityPreset(preset).catch(console.warn);
+  }, [selectedPreset, customPreset]);
+
   const connectExistingHostSession = useCallback(async (params: {
     sessionId: string;
     sessionCode: string;
@@ -221,56 +271,6 @@ export function HostPage(): React.ReactElement {
     settings,
     saveRecentHostSession,
   ]);
-
-  useEffect(() => {
-    if (!waiting || !expiresAt) return;
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
-      setTimeLeft(remaining);
-      if (remaining === 0) clearInterval(interval);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [waiting, expiresAt]);
-
-  // Sync adaptive state label every 500ms when adaptive mode is on
-  useEffect(() => {
-    if (!adaptiveMode) return;
-    const timer = setInterval(() => setAdaptiveState(adaptiveQualityController.state), 500);
-    return () => clearInterval(timer);
-  }, [adaptiveMode]);
-
-  const enableAdaptive = useCallback(() => {
-    // Resolution was already set in createPeerConnectionAsHost — only register handler + start controller
-    useSessionStore.getState().setAdaptiveBasePreset(adaptiveBasePreset);
-
-    const handler = (event: InputEvent) => adaptiveQualityController.onInputEvent(event);
-    adaptiveInputHandlerRef.current = handler;
-    dataChannelManager.onInput(handler);
-    // Use the ACTUAL captured stream resolution (not the preset dimensions).
-    // The screen may be portrait or a different resolution than the preset.
-    const actual = getLocalStreamResolution();
-    adaptiveQualityController.enable(
-      pairproProfiles,
-      (fps, bitrateMbps) => { void setAdaptiveParameters(fps, bitrateMbps); },
-      actual?.width  ?? QUALITY_PRESETS[adaptiveBasePreset].width,
-      actual?.height ?? QUALITY_PRESETS[adaptiveBasePreset].height,
-    );
-    setAdaptiveMode(true);
-  }, [pairproProfiles, adaptiveBasePreset]);
-
-  const disableAdaptive = useCallback(() => {
-    adaptiveQualityController.disable();
-    if (adaptiveInputHandlerRef.current) {
-      dataChannelManager.offInput(adaptiveInputHandlerRef.current);
-      adaptiveInputHandlerRef.current = null;
-    }
-    setAdaptiveMode(false);
-    // Restore the current quality preset
-    const preset = selectedPreset === "Custom"
-      ? ({ ...customPreset, name: "Custom" } as QualityPreset)
-      : QUALITY_PRESETS[selectedPreset as Exclude<QualityPresetName, "Custom">];
-    void applyQualityPreset(preset).catch(console.warn);
-  }, [selectedPreset, customPreset]);
 
   // Cleanup on unmount — only remove the DataChannel handler,
   // do NOT disable adaptive (SessionPage will re-enable it on mount)

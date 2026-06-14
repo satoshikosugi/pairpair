@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { screen } from "electron";
+import { screen, BrowserWindow } from "electron";
 import log from "electron-log";
 import type { InputEvent } from "@pairpair/shared";
 import { DOM_KEY_TO_MAC_KEYCODE, DOM_KEY_TO_VK } from "@pairpair/native-input";
+import { getMainWindow } from "../window";
 
 export interface CaptureArea {
   x: number;
@@ -158,12 +159,27 @@ function getPlatformKeyCode(code: string): number | undefined {
 }
 
 function tapKey(nativeInput: NativeInputModule, keyCode: number): void {
+  log.info(`[IME_DEBUG] tapKey: keyDown(${keyCode})`);
   nativeInput.keyDown(keyCode);
+  log.info(`[IME_DEBUG] tapKey: keyUp(${keyCode})`);
   nativeInput.keyUp(keyCode);
+  log.info(`[IME_DEBUG] tapKey: completed for keyCode=${keyCode}`);
 }
 
 function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" | "latin"): void {
   log.info(`[IME] setImeMode called: mode=${mode}, platform=${process.platform}`);
+  
+  // Windows では注入前にホストウィンドウをフォーカスする必要がある
+  if (process.platform === "win32") {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      log.info(`[IME] Windows: focusing main window before IME injection`);
+      mainWindow.focus();
+      // フォーカスが完全に適用されるまで短い遅延を入れる
+      // このブロッキングは IME キーが正しいウィンドウに到達するために重要
+    }
+  }
+  
   if (process.platform === "darwin") {
     if (mode === "japanese") {
       log.info("[IME] macOS: injecting Lang1 (Japanese)");

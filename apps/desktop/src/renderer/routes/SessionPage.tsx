@@ -4,6 +4,7 @@ import type {
   AnnotationStroke,
   ControlMessage,
   GuestCursorIndicator,
+  HostCursorIndicator,
   HostOverlayState,
   ImeModeEvent,
   InputEvent as PairPairInputEvent,
@@ -57,6 +58,7 @@ const ROLE_SWITCH_READY_RETRY_MS = 250;
 const ROLE_SWITCH_READY_MAX_RETRIES = 24;
 const ROLE_SWITCH_COMPLETION_TIMEOUT_MS = 15000;
 const SPOTLIGHT_DURATION_MS = 3000;
+const HOST_CURSOR_SEND_INTERVAL_MS = 33;
 
 function getToolboxBounds(
   panelWidth: number,
@@ -157,6 +159,7 @@ export function SessionPage(): React.ReactElement {
   const [markerColor, setMarkerColor] = useState("#ff6b6b");
   const [markerWidth, setMarkerWidth] = useState(4);
   const [remoteCursor, setRemoteCursor] = useState<GuestCursorIndicator | null>(null);
+  const [hostCursor, setHostCursor] = useState<HostCursorIndicator | null>(null);
   const [spotlight, setSpotlight] = useState<SpotlightIndicator | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenHintVisible, setFullscreenHintVisible] = useState(false);
@@ -178,6 +181,7 @@ export function SessionPage(): React.ReactElement {
   const activeStrokeRef = useRef<string | null>(null);
   const annotationsRef = useRef<AnnotationStroke[]>([]);
   const remoteCursorRef = useRef<GuestCursorIndicator | null>(null);
+  const hostCursorRef = useRef<HostCursorIndicator | null>(null);
   const spotlightRef = useRef<SpotlightIndicator | null>(null);
   const toolboxDragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const toolboxElementRef = useRef<HTMLDivElement | null>(null);
@@ -1192,6 +1196,10 @@ export function SessionPage(): React.ReactElement {
   }, [remoteCursor]);
 
   useEffect(() => {
+    hostCursorRef.current = hostCursor;
+  }, [hostCursor]);
+
+  useEffect(() => {
     spotlightRef.current = spotlight;
   }, [spotlight]);
 
@@ -1226,6 +1234,57 @@ export function SessionPage(): React.ReactElement {
       document.removeEventListener("paste", handlePaste, { capture: true });
     };
   }, [isHost, pasteClipboardText, sessionPermissions.clipboard]);
+
+  useEffect(() => {
+    if (!isHost) {
+      setHostCursor(null);
+      return;
+    }
+
+    let cancelled = false;
+    let inFlight = false;
+    const hiddenCursor: HostCursorIndicator = { x: 0, y: 0, visible: false, timestamp: Date.now() };
+
+    const tick = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const cursor = await window.pairpair.getSharedCursor();
+        if (cancelled) return;
+
+        const prev = hostCursorRef.current;
+        const prevVisible = prev?.visible ?? false;
+        const changed =
+          prevVisible !== cursor.visible ||
+          (cursor.visible && (
+            !prev ||
+            Math.abs(prev.x - cursor.x) > 0.001 ||
+            Math.abs(prev.y - cursor.y) > 0.001
+          ));
+
+        if (changed) {
+          dataChannelManager.sendControl({ type: "host.cursor", cursor });
+          hostCursorRef.current = cursor.visible ? cursor : null;
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void tick();
+    const timer = window.setInterval(() => {
+      void tick();
+    }, HOST_CURSOR_SEND_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      dataChannelManager.sendControl({ type: "host.cursor", cursor: hiddenCursor });
+      hostCursorRef.current = null;
+    };
+  }, [isHost]);
 
   useEffect(() => {
     const handler = (message: ControlMessage) => {
@@ -1272,6 +1331,11 @@ export function SessionPage(): React.ReactElement {
           } else {
             setCursorWithTimeout(message.cursor);
           }
+          break;
+        }
+        case "host.cursor": {
+          if (isHost) return;
+          setHostCursor(message.cursor.visible ? message.cursor : null);
           break;
         }
         case "spotlight.show": {
@@ -1940,6 +2004,7 @@ export function SessionPage(): React.ReactElement {
       <RemoteVideoView
         annotations={annotations}
         remoteCursor={null}
+        hostCursor={isHost ? null : hostCursor}
         spotlight={spotlight}
         markerEnabled={markerEnabled}
         onMarkerStart={beginMarkerStroke}

@@ -1,4 +1,4 @@
-import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, SpotlightIndicator } from "./annotation";
+import type { AnnotationPoint, AnnotationStroke, GuestCursorIndicator, HostCursorIndicator, SpotlightIndicator } from "./annotation";
 import type { PermissionPresetId, SessionPermissions } from "./permissions";
 
 export interface RemoteControlRequestMessage {
@@ -117,6 +117,11 @@ export interface GuestCursorMessage {
   cursor: GuestCursorIndicator;
 }
 
+export interface HostCursorMessage {
+  type: "host.cursor";
+  cursor: HostCursorIndicator;
+}
+
 export interface SpotlightShowMessage {
   type: "spotlight.show";
   spotlight: SpotlightIndicator;
@@ -173,6 +178,7 @@ export type ControlMessage =
   | AnnotationUndoMessage
   | AnnotationClearMessage
   | GuestCursorMessage
+  | HostCursorMessage
   | SpotlightShowMessage
   | ClipboardSnippetMessage
   | PermissionProfileUpdatedMessage

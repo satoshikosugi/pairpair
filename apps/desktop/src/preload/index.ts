@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { HostOverlayState, InputEvent } from "@pairpair/shared";
+import type { HostCursorIndicator, HostOverlayState, InputEvent } from "@pairpair/shared";
 import type { GuestToolboxAction, GuestToolboxState } from "../common/guest-toolbox";
 
 // Expose only specific, named wrappers - never expose ipcRenderer.send directly
@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("pairpair", {
   // Screen
   getScreenSources: () => ipcRenderer.invoke("screen:getSources"),
   setSelectedSource: (sourceId: string) => ipcRenderer.invoke("screen:setSelectedSource", sourceId),
+  getSharedCursor: () => ipcRenderer.invoke("screen:getSharedCursor"),
 
   // Permissions
   checkPermissions: () => ipcRenderer.invoke("permissions:check"),
@@ -98,6 +99,7 @@ declare global {
       platform: "darwin" | "win32" | "linux";
       getScreenSources: () => Promise<ScreenSource[]>;
       setSelectedSource: (sourceId: string) => Promise<boolean>;
+      getSharedCursor: () => Promise<HostCursorIndicator>;
       checkPermissions: () => Promise<{ screenRecording: boolean; accessibility: boolean }>;
       openSystemSettings: (type: string) => Promise<void>;
       getSettings: (key?: string) => Promise<unknown>;

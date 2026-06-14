@@ -18,6 +18,8 @@ export interface GuestCursorIndicator {
   timestamp: number;
 }
 
+export type HostCursorIndicator = GuestCursorIndicator;
+
 export interface SpotlightIndicator {
   x: number;
   y: number;

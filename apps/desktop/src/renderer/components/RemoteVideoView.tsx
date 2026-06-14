@@ -3,6 +3,7 @@ import type {
   AnnotationPoint,
   AnnotationStroke,
   GuestCursorIndicator,
+  HostCursorIndicator,
   MouseDownEvent,
   MouseMoveEvent,
   MouseUpEvent,
@@ -19,11 +20,14 @@ import { bindRemoteVideoElement } from "../webrtc/rtc-client";
 const MOUSE_MOVE_INTERVAL_MS = 16;
 const REMOTE_CURSOR_SIZE_PX = 46;
 const REMOTE_CURSOR_LINE_PX = 4;
+const HOST_CURSOR_SIZE_PX = 72;
+const HOST_CURSOR_LINE_PX = 6;
 
 interface RemoteVideoViewProps {
   stream?: MediaStream;
   annotations: AnnotationStroke[];
   remoteCursor: GuestCursorIndicator | null;
+  hostCursor: HostCursorIndicator | null;
   spotlight: SpotlightIndicator | null;
   markerEnabled: boolean;
   onMarkerStart: (point: AnnotationPoint) => void;
@@ -42,6 +46,7 @@ export function RemoteVideoView({
   stream,
   annotations,
   remoteCursor,
+  hostCursor,
   spotlight,
   markerEnabled,
   onMarkerStart,
@@ -459,6 +464,57 @@ export function RemoteVideoView({
                 borderRadius: "50%",
                 border: "3px solid rgba(255, 87, 34, 0.95)",
                 boxShadow: "0 0 22px rgba(255, 87, 34, 0.75)",
+              }}
+            />
+          </div>
+        )}
+        {hostCursor?.visible && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${hostCursor.x * 100}%`,
+              top: `${hostCursor.y * 100}%`,
+              width: HOST_CURSOR_SIZE_PX,
+              height: HOST_CURSOR_SIZE_PX,
+              transform: "translate(-50%, -50%)",
+              pointerEvents: "none",
+              opacity: 0.95,
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: 0,
+                width: HOST_CURSOR_LINE_PX,
+                height: "100%",
+                transform: "translateX(-50%)",
+                background: "#fff",
+                boxShadow: "0 0 0 2px rgba(0,0,0,0.72)",
+                borderRadius: 999,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: 0,
+                width: "100%",
+                height: HOST_CURSOR_LINE_PX,
+                transform: "translateY(-50%)",
+                background: "#fff",
+                boxShadow: "0 0 0 2px rgba(0,0,0,0.72)",
+                borderRadius: 999,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 14,
+                borderRadius: "50%",
+                border: "4px solid rgba(80, 194, 255, 0.98)",
+                boxShadow: "0 0 28px rgba(80, 194, 255, 0.82)",
+                background: "rgba(80, 194, 255, 0.12)",
               }}
             />
           </div>

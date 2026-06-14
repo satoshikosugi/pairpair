@@ -1,4 +1,4 @@
-import type { HostOverlayState, InputEvent } from "@pairpair/shared";
+import type { HostCursorIndicator, HostOverlayState, InputEvent } from "@pairpair/shared";
 import type { GuestToolboxAction, GuestToolboxState } from "../common/guest-toolbox";
 
 interface ScreenSource {
@@ -15,6 +15,7 @@ declare global {
       platform: "darwin" | "win32" | "linux";
       getScreenSources: () => Promise<ScreenSource[]>;
       setSelectedSource: (sourceId: string) => Promise<boolean>;
+      getSharedCursor: () => Promise<HostCursorIndicator>;
       checkPermissions: () => Promise<{ screenRecording: boolean; accessibility: boolean }>;
       openSystemSettings: (type: string) => Promise<void>;
       getSettings: (key?: string) => Promise<unknown>;

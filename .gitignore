@@ -5,6 +5,11 @@ node_modules/
 dist/
 out/
 build/
+.stage/
+release-dist/
+apps/desktop/release-dist/
+apps/desktop/.deploy-test/
+apps/desktop/release-dist/builds/
 # Electron builder resources (build/ under apps/desktop) must be tracked
 !apps/desktop/build/
 .turbo/

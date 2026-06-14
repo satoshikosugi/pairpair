@@ -2,39 +2,54 @@ import { ipcMain } from "electron";
 import Store from "electron-store";
 import log from "electron-log";
 
-const store = new Store({
-  defaults: {
-    nickname: "",
-    defaultPreset: "Balanced",
-    stunServer: "stun:stun.l.google.com:19302",
-    connectionTimeout: 30,
-    showCursor: true,
-    confirmOnExit: true,
-    saveLastSettings: true,
-    logEnabled: true,
-    requirePermissionConfirm: true,
-    wheelDirection: "standard",
-    lastSourceName: null,
-    lastSourceDisplayId: null,
-    lastHostPreset: "Balanced",
-    lastHostCustomPreset: {},
-    lastHostAdaptiveMode: false,
-    lastHostAdaptiveBasePreset: "Balanced",
-    recentSession: null,
-  },
-});
+// Lazy initialization to prevent module loading issues
+let store: Store | null = null;
+
+function getStore(): Store {
+  if (!store) {
+    store = new Store({
+      defaults: {
+        nickname: "",
+        defaultPreset: "Balanced",
+        stunServer: "stun:stun.l.google.com:19302",
+        connectionTimeout: 30,
+        showCursor: true,
+        confirmOnExit: true,
+        saveLastSettings: true,
+        logEnabled: true,
+        requirePermissionConfirm: true,
+        wheelDirection: "standard",
+        lastSourceName: null,
+        lastSourceDisplayId: null,
+        lastHostPreset: "Balanced",
+        lastHostCustomPreset: {},
+        lastHostAdaptiveMode: false,
+        lastHostAdaptiveBasePreset: "Balanced",
+        recentSession: null,
+      },
+    });
+  }
+  return store;
+}
 
 export function setupSettingsIpc(): void {
   ipcMain.handle("settings:get", (_event, key?: string) => {
-    if (key) {
-      return store.get(key);
+    try {
+      const storeInstance = getStore();
+      if (key) {
+        return storeInstance.get(key);
+      }
+      return storeInstance.store;
+    } catch (err) {
+      log.error("settings:get error:", err);
+      return null;
     }
-    return store.store;
   });
 
   ipcMain.handle("settings:set", (_event, key: string, value: unknown) => {
     try {
-      store.set(key, value);
+      const storeInstance = getStore();
+      storeInstance.set(key, value);
       return true;
     } catch (err) {
       log.error("settings:set error:", err);
@@ -43,6 +58,11 @@ export function setupSettingsIpc(): void {
   });
 
   ipcMain.handle("settings:getAll", () => {
-    return store.store;
+    try {
+      return getStore().store;
+    } catch (err) {
+      log.error("settings:getAll error:", err);
+      return {};
+    }
   });
 }

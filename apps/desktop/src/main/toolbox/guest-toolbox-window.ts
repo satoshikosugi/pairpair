@@ -1,34 +1,11 @@
-import { BrowserWindow, app } from "electron";
-import fs from "node:fs";
+import { BrowserWindow } from "electron";
 import path from "path";
 import type { GuestToolboxAction, GuestToolboxState } from "../../common/guest-toolbox";
 import { getMainWindow } from "../window";
+import guestToolboxHtml from "./guest-toolbox.html?raw";
 
 let guestToolboxWindow: BrowserWindow | null = null;
 let lastGuestToolboxState: GuestToolboxState | null = null;
-
-function resolveToolboxHtmlPath(): string {
-  const appPath = app.getAppPath();
-  const candidates = [
-    path.join(appPath, "src", "main", "toolbox", "guest-toolbox.html"),
-    path.join(appPath, "apps", "desktop", "src", "main", "toolbox", "guest-toolbox.html"),
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      fs.accessSync(candidate);
-      return candidate;
-    } catch {
-      // Try next candidate.
-    }
-  }
-
-  return candidates[0];
-}
-
-function readToolboxHtml(): string {
-  return fs.readFileSync(resolveToolboxHtmlPath(), "utf8");
-}
 
 export async function showGuestToolboxWindow(): Promise<void> {
   if (guestToolboxWindow && !guestToolboxWindow.isDestroyed()) {
@@ -81,7 +58,7 @@ export async function showGuestToolboxWindow(): Promise<void> {
 
   await guestToolboxWindow.loadURL("about:blank");
   await guestToolboxWindow.webContents.executeJavaScript(
-    `document.open();document.write(${JSON.stringify(readToolboxHtml())});document.close();`,
+    `document.open();document.write(${JSON.stringify(guestToolboxHtml)});document.close();`,
     true,
   );
   guestToolboxWindow.show();

@@ -1,20 +1,27 @@
 appId: com.pairpair.app
 productName: PairPair
+electronVersion: 31.7.7
 directories:
+  app: .stage/app
   buildResources: build
+  output: release-dist
 files:
-  - out/**/*
-  - "!out/**/*.map"
+  - "out/**/*"
+  - "node_modules/**/*"
+  - "package.json"
+asar: true
+asarUnpack:
+  - "node_modules/@pairpair/native-input/**/*"
+npmRebuild: false
+buildDependenciesFromSource: false
+publish: null
+
 win:
   target:
     - target: nsis
       arch:
         - x64
-  extraResources:
-    - from: "../../packages/native-input/"
-      to: "native-input/"
-      filter:
-        - "*.node"
+
 mac:
   target:
     - target: dmg
@@ -22,11 +29,7 @@ mac:
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  extraResources:
-    - from: "../../packages/native-input/"
-      to: "native-input/"
-      filter:
-        - "*.node"
+
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

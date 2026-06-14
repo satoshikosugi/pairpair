@@ -118,25 +118,29 @@ Windows:
 npx pnpm@10.5.0 --dir apps/desktop package:win
 ```
 
-macOS:
+成果物:
 
-```bash
-npx pnpm@10.5.0 --dir apps/desktop package:mac
-```
+- `apps/desktop/release-dist/PairPair Setup 0.1.0.exe`
+- `apps/desktop/release-dist/win-unpacked/PairPair.exe`
 
-Apple Silicon 専用:
+macOS Apple Silicon:
 
 ```bash
 npx pnpm@10.5.0 --dir apps/desktop package:mac:arm64
 ```
 
-Intel Mac 専用:
+macOS Intel:
 
 ```bash
 npx pnpm@10.5.0 --dir apps/desktop package:mac:x64
 ```
 
-VS Code では `PairPair Package (Windows)` と `PairPair Package (macOS)` タスクを利用できる。
+補足:
+
+- `package:mac` は Apple Silicon 向けの既定ビルド
+- macOS の成果物も `apps/desktop/release-dist/` に出力される
+
+VS Code では `PairPair Package (Windows)`、`PairPair Package (macOS Apple Silicon)`、`PairPair Package (macOS Intel)` タスクを利用できる。
 
 ## DevTools
 

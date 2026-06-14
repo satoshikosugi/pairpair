@@ -157,9 +157,22 @@
       }
     },
     {
-      "label": "PairPair Package (macOS)",
+      "label": "PairPair Package (macOS Apple Silicon)",
       "type": "shell",
-      "command": "npx pnpm@10.5.0 --dir apps/desktop package:mac",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop package:mac:arm64",
+      "isBackground": false,
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "PairPair Package (macOS Intel)",
+      "type": "shell",
+      "command": "npx pnpm@10.5.0 --dir apps/desktop package:mac:x64",
       "isBackground": false,
       "group": "build",
       "presentation": {

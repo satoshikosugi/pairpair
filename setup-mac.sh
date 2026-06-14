@@ -26,6 +26,14 @@ warn()    { echo "  [WARN] $*"; }
 error()   { echo "  [ERR]  $*" >&2; exit 1; }
 step()    { echo; echo ">>> $*"; }
 
+load_toolchain_env() {
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  # shellcheck disable=SC1091
+  [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
+  # shellcheck disable=SC1091
+  [[ -s "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env" || export PATH="$HOME/.cargo/bin:$PATH"
+}
+
 # -----------------------------------------------------------------------
 # Xcode コマンドラインツール
 # -----------------------------------------------------------------------
@@ -121,20 +129,15 @@ ensure_rust() {
 
   # cargo/rustup のパスを通す
   # shellcheck disable=SC1091
-  source "$HOME/.cargo/env" 2>/dev/null || export PATH="$HOME/.cargo/bin:$PATH"
+  load_toolchain_env
 
   success "Rust: $(rustc --version)"
   success "cargo: $(cargo --version)"
 
-  # 現在のアーキテクチャのターゲットを追加
-  ARCH=$(uname -m)
-  if [[ "$ARCH" == "arm64" ]]; then
-    info "aarch64-apple-darwin ターゲットを追加..."
-    rustup target add aarch64-apple-darwin
-  else
-    info "x86_64-apple-darwin ターゲットを追加..."
-    rustup target add x86_64-apple-darwin
-  fi
+  info "aarch64-apple-darwin ターゲットを追加..."
+  rustup target add aarch64-apple-darwin
+  info "x86_64-apple-darwin ターゲットを追加..."
+  rustup target add x86_64-apple-darwin
 }
 
 # -----------------------------------------------------------------------
@@ -165,6 +168,7 @@ install_deps() {
 # -----------------------------------------------------------------------
 build_native() {
   local mode="${1:-debug}"
+  local target="${2:-}"
   step "native-input Rust ビルド (${mode})"
 
   local release_flag=""
@@ -173,9 +177,13 @@ build_native() {
   fi
 
   # shellcheck disable=SC1091
-  source "$HOME/.cargo/env" 2>/dev/null || export PATH="$HOME/.cargo/bin:$PATH"
+  load_toolchain_env
 
-  (cd packages/native-input && napi build --platform ${release_flag})
+  if [[ -n "$target" ]]; then
+    (cd packages/native-input && napi build --platform ${release_flag} --target "$target")
+  else
+    (cd packages/native-input && napi build --platform ${release_flag})
+  fi
   success "native-input ビルド完了"
 }
 
@@ -228,8 +236,25 @@ package_app() {
   local arch="${1:-current}"
   step "パッケージング (arch: ${arch})"
 
+  load_toolchain_env
+  ensure_xcode_clt
+  ensure_node
+  ensure_pnpm
+  ensure_rust
+  ensure_napi_cli
+
   # リリースビルドで native-input を再ビルド
-  build_native "release"
+  case "$arch" in
+    arm64)
+      build_native "release" "aarch64-apple-darwin"
+      ;;
+    x64)
+      build_native "release" "x86_64-apple-darwin"
+      ;;
+    *)
+      build_native "release"
+      ;;
+  esac
   build_ts
 
   case "$arch" in
@@ -297,12 +322,7 @@ case "$MODE" in
     ;;
 
   --dev)
-    # nvm / cargo のパスを通す
-    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-    # shellcheck disable=SC1091
-    [[ -s "$NVM_DIR/nvm.sh" ]] && source "$NVM_DIR/nvm.sh"
-    # shellcheck disable=SC1091
-    [[ -s "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env" || export PATH="$HOME/.cargo/bin:$PATH"
+    load_toolchain_env
     run_dev
     ;;
 

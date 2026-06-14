@@ -230,37 +230,66 @@ function openMainWindowDevTools(): void {
 
 export function setupApplicationMenu(role: MenuRole = null): void {
   log.info(`[Menu] setupApplicationMenu called: role=${String(role)}`);
-  const template: MenuItemConstructorOptions[] = [
+  const helpSubmenu: MenuItemConstructorOptions[] = [
     {
-      label: app.name,
-      submenu: [
-        { role: "about", label: "PairPair について" },
-        { type: "separator" },
-        {
-          label: "終了",
-          click: () => app.quit(),
-        },
-      ],
+      label: "ホストの使い方",
+      click: () => openGuideWindow("host"),
     },
     {
-      label: "ヘルプ",
-      submenu: [
-        {
-          label: "ホストの使い方",
-          click: () => openGuideWindow("host"),
-        },
-        {
-          label: "ゲストの使い方",
-          click: () => openGuideWindow("guest"),
-        },
-        { type: "separator" },
-        {
-          label: "DevTools を表示",
-          click: () => openMainWindowDevTools(),
-        },
-      ],
+      label: "ゲストの使い方",
+      click: () => openGuideWindow("guest"),
+    },
+    { type: "separator" },
+    {
+      label: "DevTools を表示",
+      click: () => openMainWindowDevTools(),
     },
   ];
+
+  const template: MenuItemConstructorOptions[] = process.platform === "darwin"
+    ? [
+      {
+        role: "appMenu",
+        label: app.name,
+        submenu: [
+          { role: "about", label: "PairPair について" },
+          { type: "separator" },
+          { role: "services" },
+          { type: "separator" },
+          { role: "hide", label: "PairPair を隠す" },
+          { role: "hideOthers", label: "ほかを隠す" },
+          { role: "unhide", label: "すべて表示" },
+          { type: "separator" },
+          { role: "quit", label: "PairPair を終了" },
+        ],
+      },
+      {
+        label: "ウインドウ",
+        role: "windowMenu",
+      },
+      {
+        label: "ヘルプ",
+        role: "help",
+        submenu: helpSubmenu,
+      },
+    ]
+    : [
+      {
+        label: app.name,
+        submenu: [
+          { role: "about", label: "PairPair について" },
+          { type: "separator" },
+          {
+            label: "終了",
+            click: () => app.quit(),
+          },
+        ],
+      },
+      {
+        label: "ヘルプ",
+        submenu: helpSubmenu,
+      },
+    ];
 
   if (role === "guest") {
     template.splice(1, 0, {

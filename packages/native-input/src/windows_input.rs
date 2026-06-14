@@ -1,10 +1,10 @@
 #[cfg(target_os = "windows")]
 use windows::{
-  Win32::Foundation::HWND,
+  Win32::Foundation::{HWND, LPARAM, WPARAM},
   Win32::UI::Input::KeyboardAndMouse::*,
-  Win32::UI::Input::Ime::{ImmGetContext, ImmReleaseContext, ImmSetOpenStatus},
+  Win32::UI::Input::Ime::{IMC_SETOPENSTATUS, ImmGetContext, ImmGetDefaultIMEWnd, ImmReleaseContext, ImmSetOpenStatus},
   Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, GetForegroundWindow, IsIconic, SetCursorPos, SetForegroundWindow, ShowWindow, SW_RESTORE,
+    BringWindowToTop, GetForegroundWindow, IsIconic, SendMessageW, SetCursorPos, SetForegroundWindow, ShowWindow, SW_RESTORE, WM_IME_CONTROL,
   },
 };
 
@@ -216,6 +216,12 @@ unsafe fn set_ime_open_status(hwnd: HWND, open: bool) {
     if hwnd.0 == 0 {
       return;
     }
+
+    let ime_hwnd = ImmGetDefaultIMEWnd(hwnd);
+    if ime_hwnd.0 != 0 {
+      let _ = SendMessageW(ime_hwnd, WM_IME_CONTROL, WPARAM(IMC_SETOPENSTATUS as usize), LPARAM(open as isize));
+    }
+
     let himc = ImmGetContext(hwnd);
     // himc が null でなければ（IME が使えるウィンドウであれば）切り替える
     if !himc.is_invalid() {

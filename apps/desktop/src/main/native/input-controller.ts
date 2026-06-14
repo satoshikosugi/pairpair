@@ -54,8 +54,8 @@ function getNativeBinaryName(): string | null {
 function getNativeBinaryOverrides(binaryName: string): string[] {
   if (!binaryName.endsWith(".node")) return [];
   return [
-    binaryName.replace(/\.node$/, ".override.node"),
     binaryName.replace(/\.node$/, ".local.node"),
+    binaryName.replace(/\.node$/, ".override.node"),
   ];
 }
 
@@ -216,6 +216,11 @@ function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" 
       log.info(`[IME] Windows: calling setImeModeForWindow(windowId=${targetWindowId}, open=${open}) via IMM32`);
       nativeInput.setImeModeForWindow(targetWindowId, open);
       return;
+    }
+    if (!targetWindowId) {
+      log.warn("[IME] Windows: targetWindowId is null, falling back to foreground-window IME control");
+    } else if (!nativeInput.setImeModeForWindow) {
+      log.warn("[IME] Windows: setImeModeForWindow is unavailable, falling back to foreground-window IME control");
     }
     if (nativeInput.setImeMode) {
       const open = mode === "japanese" || mode === "toggle";

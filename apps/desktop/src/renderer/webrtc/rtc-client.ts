@@ -44,7 +44,7 @@ export async function createPeerConnectionAsHost(): Promise<RTCPeerConnection> {
     const canInject =
       peerAuthenticated &&
       isInputEventAllowed(event, sessionPermissions) &&
-      (controlState === "controlAllowed" || event.type === "text.input");
+      (controlState === "controlAllowed" || event.type === "text.input" || event.type === "ime.mode");
     if (canInject) {
       const injected = await window.pairpair.injectInput(event);
       if (!injected) {

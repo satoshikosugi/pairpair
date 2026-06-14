@@ -1,4 +1,4 @@
-import { app, ipcMain, globalShortcut } from "electron";
+import { ipcMain, globalShortcut } from "electron";
 import log from "electron-log";
 import { getMainWindow, sendToRenderer } from "../window";
 import { refreshApplicationMenu, setupApplicationMenu } from "../menu";
@@ -67,28 +67,15 @@ function reactivateMacApplication(forceReshow = false): void {
 
   const focusWindow = () => {
     if (win.isDestroyed()) return;
-    if (!win.isVisible()) {
+    if (forceReshow && !win.isVisible()) {
       win.show();
     }
-    app.focus({ steal: true });
-    win.moveTop();
     win.focus();
     refreshApplicationMenu();
   };
 
-  if (forceReshow) {
-    win.hide();
-    setTimeout(() => {
-      if (win.isDestroyed()) return;
-      win.show();
-      focusWindow();
-    }, 0);
-  }
-
   focusWindow();
-  setTimeout(focusWindow, 0);
-  setTimeout(focusWindow, 180);
-  setTimeout(focusWindow, 360);
+  setTimeout(focusWindow, 120);
 }
 
 export function setupSessionIpc(): void {

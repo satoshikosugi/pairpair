@@ -104,6 +104,14 @@ export function setupSessionIpc(): void {
   ipcMain.handle("session:setRole", (event, role: "host" | "guest" | null) => {
     log.info(`[Menu] session:setRole IPC received: role=${String(role)}, platform=${process.platform}`);
     setupApplicationMenu(role);
+    // macOS: ロール設定時に PairPair をアクティブアプリとして再確定させる。
+    // フルスクリーン解除後や役割切替後に別アプリのメニューが表示されてしまう問題を防ぐ。
+    if (process.platform === "darwin" && role !== null) {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.focus();
+      }
+    }
     if (role === "guest" && process.platform === "darwin") {
       startImeMonitor(event.sender.id);
     } else {
@@ -149,6 +157,12 @@ export function setupSessionIpc(): void {
         finish(win.isFullScreen() === fullscreen);
       }, 1200);
     });
+    // macOS: フルスクリーン解除後に PairPair をアクティブアプリとして再確定させる。
+    // setFullScreen(false) のアニメーション完了後に他のアプリがアクティブになり、
+    // PairPair にフォーカスがあっても別アプリのメニューが表示される問題を防ぐ。
+    if (!fullscreen && process.platform === "darwin") {
+      win.focus();
+    }
     sendToRenderer("session:fullscreen-changed", actualFullscreen ? fullscreen : win.isFullScreen());
     return actualFullscreen;
   });

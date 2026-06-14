@@ -260,6 +260,33 @@ function removePath(targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true });
 }
 
+function materializeHoistedDependencies() {
+  const hoistedRoot = path.join(appStageRoot, "node_modules", ".pnpm", "node_modules");
+  const targetRoot = path.join(appStageRoot, "node_modules");
+
+  if (!fs.existsSync(hoistedRoot)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(hoistedRoot, { withFileTypes: true })) {
+    if (entry.name === ".bin") {
+      continue;
+    }
+
+    const sourcePath = path.join(hoistedRoot, entry.name);
+    const targetPath = path.join(targetRoot, entry.name);
+
+    if (fs.existsSync(targetPath)) {
+      continue;
+    }
+
+    fs.cpSync(sourcePath, targetPath, {
+      recursive: true,
+      verbatimSymlinks: false,
+    });
+  }
+}
+
 function pruneDesktopStage() {
   const rootKeep = new Set([
     "package.json",
@@ -302,6 +329,8 @@ function pruneDesktopStage() {
       }
     }
   }
+
+  materializeHoistedDependencies();
 }
 
 function main() {

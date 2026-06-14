@@ -12,7 +12,7 @@ import { hostPeerAuthenticator } from "../webrtc/peer-auth";
 import { adaptiveQualityController } from "../webrtc/adaptive-quality";
 import { QUALITY_PRESETS, calcBitrateMbps } from "@pairpair/shared";
 import type { InputEvent } from "@pairpair/shared";
-import { getRecentSessionActionLabel, getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
+import { getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
@@ -89,16 +89,10 @@ export function HostPage(): React.ReactElement {
     setSelectedSourceId(source.id);
   }, []);
 
-  const saveRecentHostSession = useCallback(async (stage: "waiting" | "active", token: string, nextGuestDeviceName: string | null = null) => {
+  const saveRecentHostSession = useCallback(async (nextGuestDeviceName: string | null = null) => {
     await settings.setRecentSession({
       version: 1,
       role: "host",
-      stage,
-      sessionId: useSessionStore.getState().sessionId ?? "",
-      code: useSessionStore.getState().code ?? "",
-      wsUrl: useSessionStore.getState().signalingUrl ?? SERVER_URL,
-      token,
-      expiresAt: useSessionStore.getState().expiresAt,
       hostDeviceName: "PairPair Host",
       guestDeviceName: nextGuestDeviceName,
       sourceName: selectedSource?.name ?? settings.lastSourceName,
@@ -196,7 +190,7 @@ export function HostPage(): React.ReactElement {
       const payload = msg.payload as { guestDeviceName?: string };
       const guestName = payload.guestDeviceName ?? "Guest";
       setGuestDeviceName(guestName);
-      void saveRecentHostSession("active", params.hostToken, guestName);
+      void saveRecentHostSession(guestName);
 
       const currentPreset = selectedPreset === "Custom"
         ? ({ ...customPreset, name: selectedPreset } as QualityPreset)
@@ -247,7 +241,7 @@ export function HostPage(): React.ReactElement {
     });
 
     setWaiting(true);
-    await saveRecentHostSession("waiting", params.hostToken);
+    await saveRecentHostSession();
   }, [
     adaptiveBasePreset,
     adaptiveMode,
@@ -327,27 +321,18 @@ export function HostPage(): React.ReactElement {
     }
   };
 
-  const handleResumeSession = async () => {
+  const handleReuseSettings = () => {
     if (!isRecentSessionResumable(recentSession) || recentSession.role !== "host") {
-      setError("再開できるホストセッションが見つかりません");
+      setError("前回設定が見つかりません");
       return;
     }
 
-    setCreating(true);
-    try {
-      await connectExistingHostSession({
-        sessionId: recentSession.sessionId,
-        sessionCode: recentSession.code,
-        hostToken: recentSession.token,
-        wsUrl: recentSession.wsUrl,
-        expiresAt: recentSession.expiresAt,
-      });
-    } catch (err) {
-      await settings.setRecentSession(null);
-      setError(`セッション再開失敗: ${String(err)}`);
-    } finally {
-      setCreating(false);
+    if (!selectedSourceId) {
+      setError("共有する画面を選択してください");
+      return;
     }
+
+    void handleCreateSession();
   };
 
   const handleCancel = () => {
@@ -449,15 +434,19 @@ export function HostPage(): React.ReactElement {
         <div style={resumeCardStyle}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
             <div>
-              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>直前のホストセッション</div>
+              <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>前回のホスト設定</div>
               <div style={{ color: "#9cb0c8", fontSize: 13, lineHeight: 1.7 }}>
                 {getRecentSessionSummary(recentSession)}
-                <br />
-                コード: {recentSession.code}
+                {recentSession.guestDeviceName && (
+                  <>
+                    <br />
+                    直前の相手: {recentSession.guestDeviceName}
+                  </>
+                )}
                 {recentSession.requiresPassphrase && (
                   <>
                     <br />
-                    あいことば付きセッションです。再開時は下の入力欄に再入力してください。
+                    前回はあいことば付きでした。必要なら下の入力欄に再入力してください。
                   </>
                 )}
               </div>
@@ -468,17 +457,17 @@ export function HostPage(): React.ReactElement {
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
             <button
-              onClick={() => void handleResumeSession()}
+              onClick={() => void handleReuseSettings()}
               disabled={creating || !selectedSourceId}
               style={{
                 ...primaryActionButtonStyle,
                 opacity: creating || !selectedSourceId ? 0.6 : 1,
               }}
             >
-              {creating ? "再開中..." : getRecentSessionActionLabel(recentSession)}
+              {creating ? "作成中..." : "この設定で新しいセッションを作成"}
             </button>
             <div style={{ color: "#7f8ea8", fontSize: 12, alignSelf: "center" }}>
-              前回と同じ共有先を再選択してください
+              前回の共有先や画質は引き継ぎます。コードは毎回新しく発行されます。
             </div>
           </div>
         </div>

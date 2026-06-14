@@ -47,7 +47,8 @@ export function HomePage(): React.ReactElement {
               <div style={{ color: "#9cb0c8", fontSize: 13, lineHeight: 1.7 }}>
                 {getRecentSessionSummary(recentSession)}
                 <br />
-                {recentSession.role === "host" ? "役割: ホスト" : "役割: ゲスト"} / コード: {recentSession.code}
+                {recentSession.role === "host" ? "役割: ホスト" : "役割: ゲスト"}
+                {recentSession.requiresPassphrase && " / 前回はあいことばあり"}
               </div>
             </div>
             <button onClick={() => void setRecentSession(null)} style={inlineDangerButtonStyle}>

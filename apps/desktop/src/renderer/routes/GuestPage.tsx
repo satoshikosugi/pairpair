@@ -5,7 +5,7 @@ import { useSettingsStore } from "../store/settings-store";
 import { signalingClient } from "../webrtc/signaling-client";
 import { createPeerConnectionAsGuest, handleOffer, handleIce } from "../webrtc/rtc-client";
 import { guestPeerAuthenticator } from "../webrtc/peer-auth";
-import { getRecentSessionActionLabel, getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
+import { getRecentSessionSummary, isRecentSessionResumable } from "../session-resume";
 
 const SERVER_URL = "https://pairpair-signaling-server-245497898064.asia-northeast1.run.app";
 
@@ -43,22 +43,12 @@ export function GuestPage(): React.ReactElement {
   }, [requiresPassphrase]);
 
   const saveRecentGuestSession = async (params: {
-    sessionId: string;
-    guestToken: string;
-    sessionCode: string;
-    wsUrl: string;
     hostName: string;
     requiresSecret: boolean;
   }) => {
     await setRecentSession({
       version: 1,
       role: "guest",
-      stage: "active",
-      sessionId: params.sessionId,
-      code: params.sessionCode,
-      wsUrl: params.wsUrl,
-      token: params.guestToken,
-      expiresAt: null,
       hostDeviceName: params.hostName,
       guestDeviceName: "PairPair Guest",
       sourceName: null,
@@ -105,10 +95,6 @@ export function GuestPage(): React.ReactElement {
       setGuestToken(data.guestToken);
       setHostToken(null);
       await saveRecentGuestSession({
-        sessionId: data.sessionId,
-        guestToken: data.guestToken,
-        sessionCode: cleanCode,
-        wsUrl: data.wsUrl,
         hostName: data.hostDeviceName,
         requiresSecret: false,
       });
@@ -121,20 +107,12 @@ export function GuestPage(): React.ReactElement {
         () => {
           setRequiresPassphrase(true);
           void saveRecentGuestSession({
-            sessionId: data.sessionId,
-            guestToken: data.guestToken,
-            sessionCode: cleanCode,
-            wsUrl: data.wsUrl,
             hostName: data.hostDeviceName,
             requiresSecret: true,
           });
         },
         () => {
           void saveRecentGuestSession({
-            sessionId: data.sessionId,
-            guestToken: data.guestToken,
-            sessionCode: cleanCode,
-            wsUrl: data.wsUrl,
             hostName: data.hostDeviceName,
             requiresSecret: requiresPassphrase || passphrase.length > 0,
           });
@@ -168,56 +146,15 @@ export function GuestPage(): React.ReactElement {
     }
   };
 
-  const handleResumeSession = async () => {
+  const handleReuseSettings = () => {
     if (!isRecentSessionResumable(recentSession) || recentSession.role !== "guest") {
-      setError("再参加できるゲストセッションが見つかりません");
+      setError("前回設定が見つかりません");
       return;
     }
-
-    setConnecting(true);
-    try {
-      setSessionId(recentSession.sessionId);
-      setSessionCode(recentSession.code);
-      setRole("guest");
-      setHostDeviceName(recentSession.hostDeviceName ?? "PairPair Host");
-      setSignalingUrl(recentSession.wsUrl);
-      setGuestToken(recentSession.token);
-      setHostToken(null);
-      setRequiresPassphrase(recentSession.requiresPassphrase);
-
-      signalingClient.connect(recentSession.wsUrl, recentSession.sessionId, recentSession.token, "guest");
-
-      await createPeerConnectionAsGuest();
-      guestPeerAuthenticator.start(
-        recentSession.code,
-        () => setRequiresPassphrase(true),
-        () => navigate("guest-session"),
-        (reason) => {
-          if (reason === "invalid_passphrase") {
-            setPassphrase("");
-            setRequiresPassphrase(true);
-            setError("あいことばが一致しません");
-          } else {
-            setError(`P2P認証に失敗しました: ${reason}`);
-          }
-        },
-      );
-
-      signalingClient.on("rtc.offer", (msg) => {
-        const sdp = (msg.payload as { sdp?: string })?.sdp ?? "";
-        void handleOffer(sdp).catch(console.error);
-      });
-
-      signalingClient.on("rtc.ice", (msg) => {
-        const payload = msg.payload as { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
-        void handleIce(payload.candidate ?? "", payload.sdpMid ?? null, payload.sdpMLineIndex ?? null).catch(console.error);
-      });
-    } catch (err) {
-      await setRecentSession(null);
-      setError(`セッション再参加失敗: ${String(err)}`);
-    } finally {
-      setConnecting(false);
-    }
+    setCode("");
+    setPassphrase("");
+    setRequiresPassphrase(false);
+    codeInputRef.current?.focus();
   };
 
   const handleSubmitPassphrase = async () => {
@@ -258,12 +195,10 @@ export function GuestPage(): React.ReactElement {
               <div style={{ color: "#fff", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>直前のゲストセッション</div>
               <div style={{ color: "#9cb0c8", fontSize: 13, lineHeight: 1.7 }}>
                 {getRecentSessionSummary(recentSession)}
-                <br />
-                コード: {recentSession.code}
                 {recentSession.requiresPassphrase && (
                   <>
                     <br />
-                    あいことば付きセッションです。必要なら接続後に再入力します。
+                    前回はあいことば付きでした。新しいコードで接続後に再入力します。
                   </>
                 )}
               </div>
@@ -274,12 +209,12 @@ export function GuestPage(): React.ReactElement {
           </div>
           <button
             onClick={() => {
-              void handleResumeSession();
+              handleReuseSettings();
             }}
             disabled={connecting}
             style={{ ...primaryActionButtonStyle, marginTop: 14, opacity: connecting ? 0.6 : 1 }}
           >
-            {connecting ? "再参加中..." : getRecentSessionActionLabel(recentSession)}
+            新しいコードを入力する
           </button>
         </div>
       )}

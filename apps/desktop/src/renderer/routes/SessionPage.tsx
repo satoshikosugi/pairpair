@@ -320,35 +320,21 @@ export function SessionPage(): React.ReactElement {
   }, [finalizeSession, syncHostOverlay]);
 
   useEffect(() => {
-    if (!sessionId || !code || !role || roleSwitchInProgress) return;
-    const token = role === "host" ? hostToken : guestToken;
-    if (!token) return;
+    if (!role || roleSwitchInProgress) return;
     const nextSnapshot = {
       version: 1,
       role,
-      stage: role === "host" && !guestDeviceName ? "waiting" : "active",
-      sessionId,
-      code,
-      wsUrl: signalingUrl ?? "",
-      token,
-      expiresAt: role === "host" ? useSessionStore.getState().expiresAt : null,
       hostDeviceName: role === "host" ? "PairPair Host" : hostDeviceName,
       guestDeviceName,
       sourceName: lastSourceName,
       sourceDisplayId: lastSourceDisplayId,
-      requiresPassphrase: recentSession?.sessionId === sessionId ? recentSession.requiresPassphrase : false,
+      requiresPassphrase: recentSession?.requiresPassphrase ?? false,
       savedAt: Date.now(),
     } as const;
 
     const unchanged =
       recentSession?.version === nextSnapshot.version &&
       recentSession.role === nextSnapshot.role &&
-      recentSession.stage === nextSnapshot.stage &&
-      recentSession.sessionId === nextSnapshot.sessionId &&
-      recentSession.code === nextSnapshot.code &&
-      recentSession.wsUrl === nextSnapshot.wsUrl &&
-      recentSession.token === nextSnapshot.token &&
-      recentSession.expiresAt === nextSnapshot.expiresAt &&
       recentSession.hostDeviceName === nextSnapshot.hostDeviceName &&
       recentSession.guestDeviceName === nextSnapshot.guestDeviceName &&
       recentSession.sourceName === nextSnapshot.sourceName &&
@@ -358,18 +344,13 @@ export function SessionPage(): React.ReactElement {
     if (unchanged) return;
     void setRecentSession(nextSnapshot);
   }, [
-    code,
     guestDeviceName,
-    guestToken,
     hostDeviceName,
-    hostToken,
     lastSourceDisplayId,
     lastSourceName,
     role,
     roleSwitchInProgress,
-    sessionId,
     setRecentSession,
-    signalingUrl,
   ]);
 
   const handleReleaseControl = useCallback(() => {

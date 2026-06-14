@@ -24,7 +24,7 @@ export default function App(): React.ReactElement {
       }
       setSessionEndedMessage(
         isRecentSessionResumable(recentSession)
-          ? "接続が切断されました。ホームの「直前のセッション」から再参加できます"
+          ? "接続が切断されました。ホームの「直前のセッション」から前回設定でやり直せます"
           : "接続が切断されました",
       );
       reset();

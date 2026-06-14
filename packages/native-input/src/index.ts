@@ -139,6 +139,18 @@ export function focusWindow(windowId: string): void {
   getModule().focusWindow(windowId);
 }
 
+/**
+ * macOS TIS API で現在のキーボード入力ソースを取得する。
+ * "japanese" または "latin" を返す。non-macOS では常に "latin"。
+ */
+export function getCurrentImeMode(): string {
+  if (typeof process !== "undefined" && process.platform !== "darwin") {
+    return "latin";
+  }
+  const mod = getModule() as unknown as { getCurrentImeMode?: () => string };
+  return mod.getCurrentImeMode?.() ?? "latin";
+}
+
 // DOM code to Windows virtual-key mapping
 export const DOM_KEY_TO_VK: Record<string, number> = {
   "KeyA": 0x41, "KeyB": 0x42, "KeyC": 0x43, "KeyD": 0x44, "KeyE": 0x45,

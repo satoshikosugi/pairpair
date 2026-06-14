@@ -80,6 +80,15 @@ contextBridge.exposeInMainWorld("pairpair", {
   removeGuestToolboxActionListener: () => {
     ipcRenderer.removeAllListeners("toolbox:guest-action");
   },
+
+  // Mac ゲスト用 IME モード変化通知（TIS ポーリング経由）
+  // ABC/あボタンクリック、英数/かなキー、Ctrl+Space、Globeキーなどすべての切り替え方法をカバーする
+  onImeKey: (callback: (input: { mode: string }) => void) => {
+    ipcRenderer.on("session:ime-mode", (_event, input: { mode: string }) => callback(input));
+  },
+  removeImeKeyListener: () => {
+    ipcRenderer.removeAllListeners("session:ime-mode");
+  },
 });
 
 declare global {
@@ -119,6 +128,8 @@ declare global {
       removeGuestToolboxStateListener: () => void;
       onGuestToolboxAction: (callback: (action: GuestToolboxAction) => void) => void;
       removeGuestToolboxActionListener: () => void;
+      onImeKey: (callback: (input: { mode: string }) => void) => void;
+      removeImeKeyListener: () => void;
     };
   }
 

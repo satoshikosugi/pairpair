@@ -28,6 +28,8 @@ interface NativeInputModule {
   keyUp(vkCode: number): void;
   typeText(text: string): void;
   focusWindow?(windowId: string): void;
+  /** macOS のみ: TIS API で現在の IME 入力ソースを取得する */
+  getCurrentImeMode?(): string;
 }
 
 function getNativeBinaryName(): string | null {
@@ -108,6 +110,18 @@ export function setTargetWindowId(windowId: string | null): void {
 
 export function getLastRemoteInputAt(): number {
   return lastRemoteInputAt;
+}
+
+/**
+ * macOS TIS API で現在の IME 入力ソースを取得する。
+ * "japanese" または "latin" を返す。
+ * macOS 以外 またはネイティブモジュール未ロード時は null を返す。
+ */
+export function getCurrentImeMode(): string | null {
+  if (process.platform !== "darwin") return null;
+  const nativeInput = getNativeInputModule();
+  if (!nativeInput) return null;
+  return nativeInput.getCurrentImeMode?.() ?? null;
 }
 
 export function getCaptureAreaFromDisplay(displayId?: string): CaptureArea {

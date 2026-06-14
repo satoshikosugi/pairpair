@@ -95,15 +95,21 @@ function getToolboxBounds(
 }
 
 function getImeModeEvent(event: KeyboardEvent): ImeModeEvent | null {
+  // code ベースの検出（モダンな Chromium/Electron、macOS JIS キーボード）
   if (event.code === "Lang1") return { type: "ime.mode", mode: "japanese" };
   if (event.code === "Lang2") return { type: "ime.mode", mode: "latin" };
+
+  // key ベースの検出（古い Electron/Chromium で code が異なる場合のフォールバック）
+  // "Eisu" = 英数キー（macOS JIS キーボードで code が "CapsLock" になる場合がある）
+  if (event.key === "Eisu") return { type: "ime.mode", mode: "latin" };
+  // "KanaMode" = かなキー（常に日本語モード有効化）
+  if (event.key === "KanaMode") return { type: "ime.mode", mode: "japanese" };
 
   const toggleKeys = new Set([
     "KanjiMode",
     "Hankaku",
     "Zenkaku",
     "ZenkakuHankaku",
-    "KanaMode",
   ]);
   if (toggleKeys.has(event.key)) {
     return { type: "ime.mode", mode: "toggle" };
@@ -1496,6 +1502,33 @@ export function SessionPage(): React.ReactElement {
       document.removeEventListener("keyup", handleKeyUp, { capture: true });
     };
   }, [controlState, fullscreen, handleClearAnnotations, isHost, markerEnabled, sessionPermissions.clipboard, sessionPermissions.keyboard]);
+
+  // macOS ゲスト用: TIS ポーリングで検知した IME モード変化を処理する
+  // JIS キー、メニューバー ABC/あ ボタン、Ctrl+Space (US キーボード)、Globe キー
+  // など**あらゆる**入力ソース切り替えを統一的にカバーする
+  useEffect(() => {
+    if (isHost) return;
+
+    const handleImeKey = (input: { mode: string }) => {
+      const { controlState: currentControlState, sessionPermissions: currentPermissions } = useSessionStore.getState();
+      if (currentControlState !== "controlAllowed" || !currentPermissions.keyboard) return;
+      if (input.mode !== "japanese" && input.mode !== "latin") return;
+
+      const imeEvent: ImeModeEvent = {
+        type: "ime.mode",
+        mode: input.mode as "japanese" | "latin",
+      };
+      if (adaptiveQualityController.enabled) {
+        adaptiveQualityController.onInputEvent(imeEvent);
+      }
+      dataChannelManager.sendInput(imeEvent);
+    };
+
+    window.pairpair.onImeKey(handleImeKey);
+    return () => {
+      window.pairpair.removeImeKeyListener();
+    };
+  }, [isHost]);
 
   if (isHost) {
     return (

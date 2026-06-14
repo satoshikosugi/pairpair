@@ -20,3 +20,15 @@ export declare function keyUp(vkCode: number): void
 export declare function typeText(text: string): void
 /** Bring a captured application window to the foreground before injecting input. */
 export declare function focusWindow(windowId: string): void
+/**
+ * macOS TIS API を使って現在の IME 入力ソースを取得する。
+ *
+ * 返り値:
+ * - `"japanese"` : 日本語入力ソースがアクティブ
+ *   (英数キー・かなキー・Ctrl+Space・Globe キー・メニューバーボタン等の
+ *   あらゆる切り替え方法に対応)
+ * - `"latin"` : ASCII / ラテン文字入力ソースがアクティブ
+ *
+ * macOS 以外では常に `"latin"` を返す。
+ */
+export declare function getCurrentImeMode(): string

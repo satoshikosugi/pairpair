@@ -2,6 +2,62 @@ import { ipcMain, globalShortcut } from "electron";
 import log from "electron-log";
 import { getMainWindow, sendToRenderer } from "../window";
 import { setupApplicationMenu } from "../menu";
+import { getCurrentImeMode } from "../native/input-controller";
+
+// ---- macOS ゲスト用 TIS (Text Input Sources) IME ポーリングモニター ----
+//
+// `TISCopyCurrentKeyboardInputSource()` を 100ms 間隔でポーリングし、
+// 入力ソースが変化したら renderer へ "session:ime-mode" IPC を送信する。
+//
+// これにより以下のすべての IME 切り替え方法を検出できる:
+//   - JIS キーボードの 英数 / かな 物理キー
+//   - メニューバーの ABC / あ ソフトボタンのクリック
+//   - US キーボードの Ctrl+Space
+//   - Globe キー (MacBook / Magic Keyboard)
+//   - その他あらゆるシステムレベルの入力ソース切り替え
+
+const IME_POLL_INTERVAL_MS = 100;
+
+let imeMonitorTimer: ReturnType<typeof setInterval> | null = null;
+let imeMonitorWebContentsId: number | null = null;
+let lastImeMode: string | null = null;
+
+function startImeMonitor(webContentsId: number): void {
+  stopImeMonitor();
+  if (process.platform !== "darwin") return;
+
+  imeMonitorWebContentsId = webContentsId;
+  // 初期値を記録（最初のポーリングで誤検知しないよう）
+  lastImeMode = getCurrentImeMode();
+
+  imeMonitorTimer = setInterval(() => {
+    const mode = getCurrentImeMode();
+    if (mode === null || mode === lastImeMode) return;
+    lastImeMode = mode;
+
+    // webContents は遅延で破棄される可能性があるため毎回参照を取得する
+    const { webContents } = require("electron") as typeof import("electron");
+    const wc = webContents.fromId(imeMonitorWebContentsId ?? -1);
+    if (!wc || wc.isDestroyed()) {
+      stopImeMonitor();
+      return;
+    }
+    log.info(`[IME] Source changed → ${mode}`);
+    wc.send("session:ime-mode", { mode });
+  }, IME_POLL_INTERVAL_MS);
+
+  log.info(`[IME] Started TIS polling monitor (interval=${IME_POLL_INTERVAL_MS}ms)`);
+}
+
+function stopImeMonitor(): void {
+  if (imeMonitorTimer !== null) {
+    clearInterval(imeMonitorTimer);
+    imeMonitorTimer = null;
+  }
+  imeMonitorWebContentsId = null;
+  lastImeMode = null;
+  log.info("[IME] Stopped TIS polling monitor");
+}
 
 export function setupSessionIpc(): void {
   ipcMain.handle("session:registerShortcuts", (_event, isHost: boolean) => {
@@ -45,8 +101,13 @@ export function setupSessionIpc(): void {
     globalShortcut.unregisterAll();
   });
 
-  ipcMain.handle("session:setRole", (_event, role: "host" | "guest" | null) => {
+  ipcMain.handle("session:setRole", (event, role: "host" | "guest" | null) => {
     setupApplicationMenu(role);
+    if (role === "guest" && process.platform === "darwin") {
+      startImeMonitor(event.sender.id);
+    } else {
+      stopImeMonitor();
+    }
     return true;
   });
 

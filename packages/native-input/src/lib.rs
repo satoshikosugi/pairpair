@@ -8,6 +8,9 @@ mod windows_input;
 #[cfg(target_os = "macos")]
 mod macos_input;
 
+#[cfg(target_os = "macos")]
+mod macos_ime;
+
 /// Move mouse cursor to absolute screen position
 #[napi]
 pub fn move_mouse(x: i32, y: i32) {
@@ -84,4 +87,23 @@ pub fn focus_window(window_id: String) {
   macos_input::focus_window(&window_id);
   #[cfg(not(any(target_os = "windows", target_os = "macos")))]
   let _ = window_id;
+}
+
+/// macOS TIS API を使って現在の IME 入力ソースを取得する。
+///
+/// 返り値:
+/// - `"japanese"` : 日本語入力ソースがアクティブ
+///   (英数キー・かなキー・Ctrl+Space・Globe キー・メニューバーボタン等の
+///   あらゆる切り替え方法に対応)
+/// - `"latin"` : ASCII / ラテン文字入力ソースがアクティブ
+///
+/// macOS 以外では常に `"latin"` を返す。
+#[napi]
+pub fn get_current_ime_mode() -> String {
+  #[cfg(target_os = "macos")]
+  {
+    return macos_ime::get_current_ime_mode();
+  }
+  #[cfg(not(target_os = "macos"))]
+  "latin".to_string()
 }

@@ -1,4 +1,5 @@
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -7,7 +8,8 @@ const repoRoot = path.resolve(desktopRoot, "..", "..");
 const packageRoot = path.join(repoRoot, "packages");
 const stageRoot = path.join(desktopRoot, ".stage");
 const appStageRoot = path.join(stageRoot, "app");
-const deployTempRoot = path.join("C:\\tmp", "pairpair-deploy-app");
+const tempRoot = path.join(os.tmpdir(), "pairpair");
+const deployTempRoot = path.join(tempRoot, "deploy-app");
 const releaseDistRoot = path.join(desktopRoot, "release-dist");
 const cliArgs = process.argv.slice(2);
 
@@ -226,7 +228,7 @@ function buildDesktop() {
 }
 
 function safeReset(targetPath) {
-  const allowedRoots = [stageRoot, releaseDistRoot, "C:\\tmp"];
+  const allowedRoots = [stageRoot, releaseDistRoot, tempRoot];
   if (!allowedRoots.some((root) => targetPath.startsWith(root))) {
     throw new Error(`Refusing to delete outside stage root: ${targetPath}`);
   }

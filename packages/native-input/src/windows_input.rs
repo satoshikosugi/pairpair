@@ -2,8 +2,9 @@
 use windows::{
   Win32::Foundation::HWND,
   Win32::UI::Input::KeyboardAndMouse::*,
+  Win32::UI::Input::Ime::{ImmGetContext, ImmReleaseContext, ImmSetOpenStatus},
   Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, IsIconic, SetCursorPos, SetForegroundWindow, ShowWindow, SW_RESTORE,
+    BringWindowToTop, GetForegroundWindow, IsIconic, SetCursorPos, SetForegroundWindow, ShowWindow, SW_RESTORE,
   },
 };
 
@@ -172,6 +173,25 @@ pub fn type_text(text: &str) {
         },
       };
       SendInput(&[input_down, input_up], std::mem::size_of::<INPUT>() as i32);
+    }
+  }
+}
+
+/// IMM32 API を使って Windows IME の ON/OFF を直接制御する。
+/// `open=true` で日本語入力 ON、`open=false` で英数入力 (IME OFF)。
+/// SendInput での VK_KANA と異なり、フォアグラウンドウィンドウがどこであっても確実に動作する。
+pub fn set_ime_mode_win(open: bool) {
+  #[cfg(target_os = "windows")]
+  unsafe {
+    let hwnd = GetForegroundWindow();
+    if hwnd.0 == 0 {
+      return;
+    }
+    let himc = ImmGetContext(hwnd);
+    // himc が null でなければ（IME が使えるウィンドウであれば）切り替える
+    if !himc.is_invalid() {
+      let _ = ImmSetOpenStatus(himc, open.into());
+      let _ = ImmReleaseContext(hwnd, himc);
     }
   }
 }

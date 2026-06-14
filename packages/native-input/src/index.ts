@@ -151,6 +151,19 @@ export function getCurrentImeMode(): string {
   return mod.getCurrentImeMode?.() ?? "latin";
 }
 
+/**
+ * Windows IMM32 API (ImmSetOpenStatus) を使って IME を直接 ON/OFF する。
+ * open=true で日本語入力 ON、open=false で英数入力 (IME OFF)。
+ * Windows 以外では何もしない。
+ */
+export function setImeMode(open: boolean): void {
+  if (typeof process !== "undefined" && process.platform !== "win32") {
+    return;
+  }
+  const mod = getModule() as unknown as { setImeMode?: (open: boolean) => void };
+  mod.setImeMode?.(open);
+}
+
 // DOM code to Windows virtual-key mapping
 export const DOM_KEY_TO_VK: Record<string, number> = {
   "KeyA": 0x41, "KeyB": 0x42, "KeyC": 0x43, "KeyD": 0x44, "KeyE": 0x45,

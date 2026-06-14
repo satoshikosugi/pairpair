@@ -107,3 +107,15 @@ pub fn get_current_ime_mode() -> String {
   #[cfg(not(target_os = "macos"))]
   "latin".to_string()
 }
+
+/// Windows IMM32 API (ImmSetOpenStatus) を使って IME を直接 ON/OFF する。
+/// `open=true` で日本語入力 ON、`open=false` で英数入力 (IME OFF)。
+/// フォアグラウンドウィンドウの IME コンテキストに対して動作する。
+/// Windows 以外では何もしない。
+#[napi]
+pub fn set_ime_mode(open: bool) {
+  #[cfg(target_os = "windows")]
+  windows_input::set_ime_mode_win(open);
+  #[cfg(not(target_os = "windows"))]
+  let _ = open;
+}

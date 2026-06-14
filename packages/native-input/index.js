@@ -310,7 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { moveMouse, mouseButton, mouseScroll, keyDown, keyUp, typeText, focusWindow, getCurrentImeMode } = nativeBinding
+const { moveMouse, mouseButton, mouseScroll, keyDown, keyUp, typeText, focusWindow, getCurrentImeMode, setImeMode } = nativeBinding
 
 module.exports.moveMouse = moveMouse
 module.exports.mouseButton = mouseButton
@@ -320,5 +320,6 @@ module.exports.keyUp = keyUp
 module.exports.typeText = typeText
 module.exports.focusWindow = focusWindow
 module.exports.getCurrentImeMode = getCurrentImeMode
+module.exports.setImeMode = setImeMode
 module.exports.DOM_KEY_TO_VK = require('./dist/index.js').DOM_KEY_TO_VK
 module.exports.DOM_KEY_TO_MAC_KEYCODE = require('./dist/index.js').DOM_KEY_TO_MAC_KEYCODE

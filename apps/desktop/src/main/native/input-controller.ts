@@ -1,10 +1,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { screen, BrowserWindow } from "electron";
+import { screen } from "electron";
 import log from "electron-log";
 import type { InputEvent } from "@pairpair/shared";
 import { DOM_KEY_TO_MAC_KEYCODE, DOM_KEY_TO_VK } from "@pairpair/native-input";
-import { getMainWindow } from "../window";
 
 export interface CaptureArea {
   x: number;
@@ -31,6 +30,8 @@ interface NativeInputModule {
   focusWindow?(windowId: string): void;
   /** macOS のみ: TIS API で現在の IME 入力ソースを取得する */
   getCurrentImeMode?(): string;
+  /** Windows のみ: IMM32 API で IME の ON/OFF を直接制御する */
+  setImeMode?(open: boolean): void;
 }
 
 function getNativeBinaryName(): string | null {
@@ -168,18 +169,7 @@ function tapKey(nativeInput: NativeInputModule, keyCode: number): void {
 
 function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" | "latin"): void {
   log.info(`[IME] setImeMode called: mode=${mode}, platform=${process.platform}`);
-  
-  // Windows では注入前にホストウィンドウをフォーカスする必要がある
-  if (process.platform === "win32") {
-    const mainWindow = getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      log.info(`[IME] Windows: focusing main window before IME injection`);
-      mainWindow.focus();
-      // フォーカスが完全に適用されるまで短い遅延を入れる
-      // このブロッキングは IME キーが正しいウィンドウに到達するために重要
-    }
-  }
-  
+
   if (process.platform === "darwin") {
     if (mode === "japanese") {
       log.info("[IME] macOS: injecting Lang1 (Japanese)");
@@ -197,13 +187,16 @@ function setImeMode(nativeInput: NativeInputModule, mode: "toggle" | "japanese" 
   }
 
   if (process.platform === "win32") {
-    const keyCode = mode === "japanese"
-      ? DOM_KEY_TO_VK.KanaMode
-      : mode === "latin"
-        ? DOM_KEY_TO_VK.NonConvert
-        : DOM_KEY_TO_VK.KanjiMode;
-    log.info(`[IME] Windows: injecting mode=${mode}, keyCode=0x${keyCode.toString(16)}`);
-    tapKey(nativeInput, keyCode);
+    // IMM32 API (ImmSetOpenStatus) が使えれば最も確実
+    if (nativeInput.setImeMode) {
+      const open = mode === "japanese" || mode === "toggle";
+      log.info(`[IME] Windows: calling setImeMode(open=${open}) via IMM32`);
+      nativeInput.setImeMode(open);
+      return;
+    }
+    // フォールバック: SendInput で VK_KANJI (トグル)
+    log.info(`[IME] Windows: setImeMode not available, fallback to VK_KANJI toggle`);
+    tapKey(nativeInput, DOM_KEY_TO_VK.KanjiMode);
   }
 }
 
